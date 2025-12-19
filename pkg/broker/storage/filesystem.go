@@ -32,7 +32,10 @@ func (fs *FilesystemBackend) Save(ctx context.Context, key string, data []byte) 
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	path := fs.keyToPath(key)
+	path, err := fs.keyToPath(key)
+	if err != nil {
+		return err
+	}
 
 	// Create parent directories
 	dir := filepath.Dir(path)
@@ -60,7 +63,11 @@ func (fs *FilesystemBackend) Load(ctx context.Context, key string) ([]byte, erro
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
-	path := fs.keyToPath(key)
+	path, err := fs.keyToPath(key)
+	if err != nil {
+		return nil, err
+	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -77,7 +84,11 @@ func (fs *FilesystemBackend) List(ctx context.Context, prefix string) ([]string,
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
-	basePath := fs.keyToPath(prefix)
+	basePath, err := fs.keyToPath(prefix)
+	if err != nil {
+		return nil, err
+	}
+
 	var keys []string
 
 	// Check if basePath exists
@@ -85,7 +96,7 @@ func (fs *FilesystemBackend) List(ctx context.Context, prefix string) ([]string,
 		return keys, nil
 	}
 
-	err := filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(basePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -115,8 +126,12 @@ func (fs *FilesystemBackend) Delete(ctx context.Context, key string) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	path := fs.keyToPath(key)
-	err := os.Remove(path)
+	path, err := fs.keyToPath(key)
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return ErrNotFound
@@ -135,8 +150,12 @@ func (fs *FilesystemBackend) Exists(ctx context.Context, key string) (bool, erro
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
-	path := fs.keyToPath(key)
-	_, err := os.Stat(path)
+	path, err := fs.keyToPath(key)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -152,10 +171,17 @@ func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) e
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
+	// Validate all keys first before making any changes
+	for _, op := range ops {
+		if _, err := fs.keyToPath(op.Key); err != nil {
+			return err
+		}
+	}
+
 	// For filesystem, we'll do a best-effort transaction
 	// Create temp files for saves, then commit all at once
 	type pendingSave struct {
-		tempPath string
+		tempPath  string
 		finalPath string
 	}
 	var pendingSaves []pendingSave
@@ -163,20 +189,21 @@ func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) e
 	// First pass: write to temp files
 	for _, op := range ops {
 		if op.Type == OpSave {
-			path := fs.keyToPath(op.Key)
+			path, _ := fs.keyToPath(op.Key) // Already validated above
 			dir := filepath.Dir(path)
 			if err := os.MkdirAll(dir, 0755); err != nil {
-				// Cleanup and return
+				// Cleanup temp files on error (best effort, errors ignored)
 				for _, ps := range pendingSaves {
-					os.Remove(ps.tempPath)
+					_ = os.Remove(ps.tempPath)
 				}
 				return fmt.Errorf("failed to create directory for %s: %w", op.Key, err)
 			}
 
 			tempPath := path + ".tmp"
 			if err := os.WriteFile(tempPath, op.Data, 0644); err != nil {
+				// Cleanup temp files on error (best effort, errors ignored)
 				for _, ps := range pendingSaves {
-					os.Remove(ps.tempPath)
+					_ = os.Remove(ps.tempPath)
 				}
 				return fmt.Errorf("failed to write temp file for %s: %w", op.Key, err)
 			}
@@ -196,7 +223,7 @@ func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) e
 	// Third pass: execute deletes
 	for _, op := range ops {
 		if op.Type == OpDelete {
-			path := fs.keyToPath(op.Key)
+			path, _ := fs.keyToPath(op.Key) // Already validated above
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return fmt.Errorf("failed to delete %s: %w", op.Key, err)
 			}
@@ -207,11 +234,46 @@ func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) e
 	return nil
 }
 
+// ErrInvalidKey is returned when a key contains invalid characters or path traversal attempts.
+var ErrInvalidKey = fmt.Errorf("invalid key: contains path traversal sequences")
+
+// validateKey checks if a key is safe to use (no path traversal attempts).
+func validateKey(key string) error {
+	// Reject keys containing path traversal sequences
+	if strings.Contains(key, "..") {
+		return ErrInvalidKey
+	}
+	return nil
+}
+
 // keyToPath converts a storage key to a filesystem path.
-func (fs *FilesystemBackend) keyToPath(key string) string {
+// Returns an error if the key contains path traversal attempts or
+// resolves to a path outside the root directory.
+func (fs *FilesystemBackend) keyToPath(key string) (string, error) {
+	if err := validateKey(key); err != nil {
+		return "", err
+	}
+
 	// Remove leading slash and convert to filesystem path
 	cleanKey := strings.TrimPrefix(key, "/")
-	return filepath.Join(fs.rootDir, filepath.FromSlash(cleanKey))
+	resolvedPath := filepath.Join(fs.rootDir, filepath.FromSlash(cleanKey))
+
+	// Verify the resolved path is within rootDir
+	absRoot, err := filepath.Abs(fs.rootDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve root directory: %w", err)
+	}
+	absPath, err := filepath.Abs(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+
+	// Check that the resolved path starts with the root directory
+	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) && absPath != absRoot {
+		return "", ErrInvalidKey
+	}
+
+	return resolvedPath, nil
 }
 
 // cleanEmptyDirs removes empty parent directories up to rootDir.

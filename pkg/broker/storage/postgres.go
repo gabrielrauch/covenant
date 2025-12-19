@@ -25,6 +25,11 @@ func NewPostgresBackend(cfg PostgresConfig) (*PostgresBackend, error) {
 		return nil, fmt.Errorf("database connection is required")
 	}
 
+	// Verify database connection is valid
+	if err := cfg.DB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
 	tableName := cfg.TableName
 	if tableName == "" {
 		tableName = "covenant_storage"
@@ -193,61 +198,10 @@ func (p *PostgresBackend) Transaction(ctx context.Context, ops []Operation) erro
 	return nil
 }
 
-// Query provides custom query capabilities.
-func (p *PostgresBackend) Query(ctx context.Context, whereClause string, args ...any) ([]KeyValue, error) {
-	query := fmt.Sprintf(`SELECT key, data FROM %s WHERE %s`, p.tableName, whereClause)
-
-	rows, err := p.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query: %w", err)
-	}
-	defer rows.Close()
-
-	var results []KeyValue
-	for rows.Next() {
-		var kv KeyValue
-		if err := rows.Scan(&kv.Key, &kv.Value); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-		results = append(results, kv)
-	}
-
-	return results, rows.Err()
-}
-
-// KeyValue represents a key-value pair from a query.
+// KeyValue represents a key-value pair.
 type KeyValue struct {
 	Key   string
 	Value []byte
-}
-
-// Search searches for keys matching patterns in the data.
-// Uses PostgreSQL's JSONB operators if the data is JSON.
-func (p *PostgresBackend) Search(ctx context.Context, jsonPath string, value any) ([]string, error) {
-	// This assumes data is stored as JSON
-	query := fmt.Sprintf(`
-		SELECT key FROM %s
-		WHERE data::jsonb @> $1::jsonb
-	`, p.tableName)
-
-	pattern := fmt.Sprintf(`{"%s": %q}`, jsonPath, value)
-
-	rows, err := p.db.QueryContext(ctx, query, pattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search: %w", err)
-	}
-	defer rows.Close()
-
-	var keys []string
-	for rows.Next() {
-		var key string
-		if err := rows.Scan(&key); err != nil {
-			return nil, err
-		}
-		keys = append(keys, key)
-	}
-
-	return keys, rows.Err()
 }
 
 // CreateIndexes creates indexes for better query performance.
