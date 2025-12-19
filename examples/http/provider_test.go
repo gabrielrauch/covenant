@@ -48,15 +48,22 @@ func (api *OrdersAPI) handleGetOrder(w http.ResponseWriter, r *http.Request, id 
 }
 
 func (api *OrdersAPI) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
-	order := &Order{
-		ID:     "new-order-id",
-		Status: "created",
+	// Parse request body to get items
+	var req struct {
+		Items []map[string]any `json:"items"`
 	}
-	api.orders[order.ID] = order
+	json.NewDecoder(r.Body).Decode(&req)
+
+	// Build response with items echoed back
+	response := map[string]any{
+		"id":     "new-order-id",
+		"status": "created",
+		"items":  req.Items,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(order)
+	json.NewEncoder(w).Encode(response)
 }
 
 // AddOrder adds an order to the API (for state setup).

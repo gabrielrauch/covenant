@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gabrielrauch/covenant/pkg/consumer"
@@ -121,11 +122,14 @@ func TestCreateOrder_Consumer(t *testing.T) {
 	consumer.RunTest(t, "checkout-ui", "orders-api",
 		[]*consumer.Interaction{createOrderInteraction},
 		func(mockURL string) {
+			// Build request body
+			body := `{"items": [{"sku": "WIDGET-1", "quantity": 2}]}`
+
 			// Test the actual HTTP call
 			resp, err := http.Post(
 				mockURL+"/orders",
 				"application/json",
-				nil, // Would normally include body
+				strings.NewReader(body),
 			)
 			if err != nil {
 				t.Fatalf("Failed to create order: %v", err)

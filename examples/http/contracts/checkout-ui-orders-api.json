@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "id": "4457472b-3f18-4bfc-b7fd-bd944cad41ca",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "checkout-ui"
+    },
+    "provider": {
+      "name": "orders-api"
+    },
+    "status": "draft",
+    "created_at": "2025-12-19T15:54:33.577221Z",
+    "checksum": "e72fc122a46355063c0453f70bbec9801869a9b1e18cf768f0381fd9d7104c59"
+  },
+  "interactions": [
+    {
+      "id": "create-order",
+      "description": "create new order",
+      "protocol": "http",
+      "payload": {
+        "http": {
+          "request": {
+            "method": "POST",
+            "path": "/orders",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "items": [
+                {
+                  "quantity": 2,
+                  "sku": "WIDGET-1"
+                }
+              ]
+            }
+          },
+          "response": {
+            "status": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "id": "new-order-id",
+              "items": [
+                {
+                  "quantity": 2,
+                  "sku": "WIDGET-1"
+                }
+              ],
+              "status": "created"
+            }
+          }
+        }
+      },
+      "matching_rules": {
+        "$.response.body.id": {
+          "match": "type"
+        }
+      }
+    }
+  ]
+}
