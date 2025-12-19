@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "4457472b-3f18-4bfc-b7fd-bd944cad41ca",
+    "id": "879abc16-c2b1-4d10-9d03-b0a914de28df",
     "version": "1.0.0",
     "consumer": {
       "name": "checkout-ui"
@@ -9,7 +9,7 @@
       "name": "orders-api"
     },
     "status": "draft",
-    "created_at": "2025-12-19T15:54:33.577221Z",
+    "created_at": "2025-12-19T16:15:29.703833Z",
     "checksum": "e72fc122a46355063c0453f70bbec9801869a9b1e18cf768f0381fd9d7104c59"
   },
   "interactions": [

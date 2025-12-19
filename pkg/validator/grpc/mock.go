@@ -95,7 +95,7 @@ func (s *MockServer) HandleUnaryCall(ctx context.Context, service, method string
 	if !result.Success {
 		recorded.Error = fmt.Sprintf("request validation failed: %v", formatErrors(result.Errors))
 		s.recordCall(recorded)
-		return nil, nil, "", fmt.Errorf(recorded.Error)
+		return nil, nil, "", fmt.Errorf("%s", recorded.Error)
 	}
 
 	recorded.Matched = true
