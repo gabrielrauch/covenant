@@ -16,6 +16,9 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/validator"
 )
 
+// MaxBodySize is the maximum size of request/response bodies to read (10MB default).
+const MaxBodySize = 10 * 1024 * 1024
+
 // Validator implements HTTP protocol validation.
 type Validator struct {
 	client *http.Client
@@ -182,8 +185,13 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 
 	// Validate body
 	if expected.Body != nil && req.Body != nil {
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err == nil {
+		bodyBytes, err := io.ReadAll(io.LimitReader(req.Body, MaxBodySize))
+		if err != nil {
+			result.AddError(validator.ValidationError{
+				Path:    "$.request.body",
+				Message: fmt.Sprintf("failed to read request body: %v", err),
+			})
+		} else {
 			req.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // Reset body
 			bodyResult := v.validateBody(
 				expected.Body,
@@ -331,8 +339,8 @@ func (v *Validator) ValidateResponse(interaction contract.Interaction, resp *htt
 		})
 	}
 
-	// Read response body
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// Read response body with size limit
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, MaxBodySize))
 	if err != nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Path:    "$.response.body",

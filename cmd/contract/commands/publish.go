@@ -85,8 +85,13 @@ func Publish(ctx context.Context, args []string) error {
 			continue
 		}
 
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to read response for %s: %v\n", file, err)
+			continue
+		}
 
 		if resp.StatusCode != http.StatusCreated {
 			fmt.Fprintf(os.Stderr, "Failed to publish %s: %s\n", file, string(body))

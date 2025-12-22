@@ -218,7 +218,11 @@ func matchPath(expected, actual string) bool {
 		pattern = regexp.MustCompile(`\\{[^}]+\\}`).ReplaceAllString(pattern, `[^/]+`)
 		pattern = "^" + pattern + "$"
 
-		matched, _ := regexp.MatchString(pattern, actual)
+		matched, err := regexp.MatchString(pattern, actual)
+		if err != nil {
+			// Invalid regex pattern - fall back to exact match which will fail
+			return false
+		}
 		return matched
 	}
 

@@ -65,7 +65,10 @@ func Fetch(ctx context.Context, args []string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to list contracts: status %d (unable to read body: %w)", resp.StatusCode, err)
+		}
 		return fmt.Errorf("failed to list contracts: %s", string(body))
 	}
 
@@ -106,9 +109,13 @@ func Fetch(ctx context.Context, args []string) error {
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			fmt.Fprintf(os.Stderr, "Failed to fetch %s: %s\n", summary.ID, string(body))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to fetch %s: status %d (unable to read body)\n", summary.ID, resp.StatusCode)
+			} else {
+				fmt.Fprintf(os.Stderr, "Failed to fetch %s: %s\n", summary.ID, string(body))
+			}
 			continue
 		}
 

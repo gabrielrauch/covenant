@@ -226,8 +226,24 @@ func matchStructureRecursive(path string, expected, actual any, result *MatchRes
 	}
 
 	// Normalize both to comparable types
-	expNorm, _ := normalizeData(expected)
-	actNorm, _ := normalizeData(actual)
+	expNorm, err := normalizeData(expected)
+	if err != nil {
+		result.Success = false
+		result.Errors = append(result.Errors, MatchFailure{
+			Path:    path,
+			Message: fmt.Sprintf("failed to normalize expected data: %v", err),
+		})
+		return
+	}
+	actNorm, err := normalizeData(actual)
+	if err != nil {
+		result.Success = false
+		result.Errors = append(result.Errors, MatchFailure{
+			Path:    path,
+			Message: fmt.Sprintf("failed to normalize actual data: %v", err),
+		})
+		return
+	}
 
 	switch exp := expNorm.(type) {
 	case map[string]any:
