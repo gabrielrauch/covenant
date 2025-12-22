@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Bidirectional stream sequence synchronization in gRPC mock
 
+### Testing
+- Added comprehensive test suite for HTTP validator (39% coverage)
+- Added comprehensive test suite for consumer DSL (50% coverage)
+
 ## [0.1.0] - 2025-12-22
 
 ### Added
