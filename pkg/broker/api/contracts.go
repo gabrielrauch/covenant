@@ -99,6 +99,7 @@ func (s *ContractService) Publish(ctx context.Context, c *contract.Contract) (*P
 	ops := []storage.Operation{
 		{Type: storage.OpSave, Key: s.keys.ContractByID(c.Metadata.ID), Data: data},
 		{Type: storage.OpSave, Key: s.keys.Contract(c.Metadata.Consumer.Name, c.Metadata.Provider.Name, c.Metadata.Version), Data: data},
+		{Type: storage.OpSave, Key: s.keys.LatestContract(c.Metadata.Consumer.Name, c.Metadata.Provider.Name), Data: data},
 	}
 
 	// Update tags index
@@ -123,9 +124,7 @@ func (s *ContractService) Publish(ctx context.Context, c *contract.Contract) (*P
 func (s *ContractService) Get(ctx context.Context, consumer, provider, version string) (*contract.Contract, error) {
 	var key string
 	if version == "" || version == "latest" {
-		// Get latest version
-		// TODO: implement proper latest version tracking
-		key = s.keys.Contract(consumer, provider, "1.0.0")
+		key = s.keys.LatestContract(consumer, provider)
 	} else {
 		key = s.keys.Contract(consumer, provider, version)
 	}

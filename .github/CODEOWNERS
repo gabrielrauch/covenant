@@ -1,0 +1,20 @@
+# Code Owners for Covenant
+# These owners will be requested for review when someone opens a pull request.
+
+# Default owner for everything in the repo
+* @gabrielrauch
+
+# Core packages
+/pkg/consumer/ @gabrielrauch
+/pkg/provider/ @gabrielrauch
+/pkg/contract/ @gabrielrauch
+/pkg/broker/ @gabrielrauch
+/pkg/validator/ @gabrielrauch
+/pkg/matching/ @gabrielrauch
+
+# CLI
+/cmd/ @gabrielrauch
+
+# CI/CD and infrastructure
+/.github/ @gabrielrauch
+/.goreleaser.yml @gabrielrauch

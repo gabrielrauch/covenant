@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- CODE_OF_CONDUCT.md with development-focused guidelines
+- .github/CODEOWNERS for automatic PR review assignments
+- Go Reference badge in README
 - Comprehensive README with full documentation
 - CONTRIBUTING.md with development guidelines
 - LICENSE (MIT)

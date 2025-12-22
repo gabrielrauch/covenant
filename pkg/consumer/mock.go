@@ -10,7 +10,8 @@ import (
 	httpvalidator "github.com/gabrielrauch/covenant/pkg/validator/http"
 )
 
-// Pact represents a consumer test pact with a provider.
+// Pact manages consumer contract testing with automatic mock server lifecycle.
+// It provides a fluent API to define interactions and verify them against a mock server.
 type Pact struct {
 	consumer  string
 	provider  string
