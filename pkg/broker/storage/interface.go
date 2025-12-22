@@ -6,11 +6,12 @@ import (
 	"errors"
 )
 
-// Common errors
+// Common errors returned by storage backends.
 var (
 	ErrNotFound      = errors.New("not found")
 	ErrAlreadyExists = errors.New("already exists")
 	ErrConflict      = errors.New("conflict")
+	ErrInvalidKey    = errors.New("invalid key")
 )
 
 // Backend defines the interface for storage backends.

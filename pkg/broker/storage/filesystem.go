@@ -234,9 +234,6 @@ func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) e
 	return nil
 }
 
-// ErrInvalidKey is returned when a key contains invalid characters or path traversal attempts.
-var ErrInvalidKey = fmt.Errorf("invalid key: contains path traversal sequences")
-
 // validateKey checks if a key is safe to use (no path traversal attempts).
 func validateKey(key string) error {
 	// Reject keys containing path traversal sequences
