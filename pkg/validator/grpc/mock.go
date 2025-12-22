@@ -233,6 +233,8 @@ func (h *BidiStreamHandler) Recv() ([]byte, bool) {
 		h.seqIndex++
 		if msg.Direction == contract.StreamDirectionServer {
 			response, _ := json.Marshal(msg.Message)
+			// Notify validator that server message was sent (keeps indices in sync)
+			h.validator.ValidateServerMessage(response, nil)
 			return response, true
 		}
 	}

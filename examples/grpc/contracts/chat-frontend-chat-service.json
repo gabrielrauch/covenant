@@ -1,0 +1,65 @@
+{
+  "metadata": {
+    "id": "6a5daf01-ed9b-4e88-b137-92fdfbb249cf",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "chat-frontend"
+    },
+    "provider": {
+      "name": "chat-service"
+    },
+    "status": "draft",
+    "created_at": "2025-12-22T19:17:50.741433Z"
+  },
+  "interactions": [
+    {
+      "id": "chat-stream",
+      "description": "bidirectional chat stream",
+      "protocol": "grpc",
+      "payload": {
+        "grpc": {
+          "service": "chat.ChatService",
+          "method": "Chat",
+          "request": {
+            "message": null
+          },
+          "response": {
+            "status": "OK",
+            "message": null
+          },
+          "stream_type": "bidirectional",
+          "sequence": [
+            {
+              "direction": "client",
+              "message": {
+                "text": "Hello",
+                "user": "alice"
+              }
+            },
+            {
+              "direction": "server",
+              "message": {
+                "text": "Hi Alice!",
+                "user": "bot"
+              }
+            },
+            {
+              "direction": "client",
+              "message": {
+                "text": "How are you?",
+                "user": "alice"
+              }
+            },
+            {
+              "direction": "server",
+              "message": {
+                "text": "I'm doing well!",
+                "user": "bot"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

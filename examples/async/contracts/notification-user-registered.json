@@ -1,0 +1,46 @@
+{
+  "metadata": {
+    "id": "9d40d339-8333-4ff3-95c8-b1d06ef900fe",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "notification-service"
+    },
+    "provider": {
+      "name": "user-service"
+    },
+    "status": "draft",
+    "created_at": "2025-12-22T19:17:51.473374Z"
+  },
+  "interactions": [
+    {
+      "id": "user-registered",
+      "description": "user registered event",
+      "protocol": "async",
+      "payload": {
+        "async": {
+          "destination": "users.registered",
+          "direction": "publish",
+          "message": {
+            "headers": {
+              "event-type": "UserRegistered"
+            },
+            "payload": {
+              "email": "user@example.com",
+              "name": "Test User",
+              "user_id": "user-001"
+            }
+          }
+        }
+      },
+      "matching_rules": {
+        "$.message.payload.email": {
+          "match": "regex",
+          "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+        },
+        "$.message.payload.user_id": {
+          "match": "type"
+        }
+      }
+    }
+  ]
+}

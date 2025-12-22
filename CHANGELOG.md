@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Architecture documentation (`docs/architecture.md`)
 - Dockerfile with multi-stage build for broker
 - docker-compose.yml with profiles for filesystem, PostgreSQL, and S3 backends
+- GoReleaser configuration for automated releases
+- GitHub Actions release workflow
+
+### Fixed
+- Bidirectional stream sequence synchronization in gRPC mock
 
 ## [0.1.0] - 2025-12-22
 

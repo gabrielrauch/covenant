@@ -1,0 +1,122 @@
+version: 2
+
+project_name: covenant
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - id: covenant
+    main: ./cmd/contract
+    binary: covenant
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Security
+      regexp: '^.*?sec(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: gabrielrauch
+    name: covenant
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## Covenant {{ .Version }}
+
+    Consumer-driven contract testing for Go with HTTP, gRPC, and async messaging support.
+  footer: |
+    **Full Changelog**: https://github.com/gabrielrauch/covenant/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ---
+    _Released with [GoReleaser](https://goreleaser.com)_
+
+brews:
+  - repository:
+      owner: gabrielrauch
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/gabrielrauch/covenant
+    description: Consumer-driven contract testing for Go
+    license: MIT
+    skip_upload: auto
+    test: |
+      system "#{bin}/covenant", "--version"
+    install: |
+      bin.install "covenant"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/gabrielrauch/covenant:{{ .Version }}"
+      - "ghcr.io/gabrielrauch/covenant:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source={{ .GitURL }}"
+      - "--label=org.opencontainers.image.revision={{ .FullCommit }}"
+    skip_push: auto

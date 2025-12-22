@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "id": "ef02d9e3-cded-45a8-a843-a6c5ab47d685",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "analytics-dashboard"
+    },
+    "provider": {
+      "name": "events-service"
+    },
+    "status": "draft",
+    "created_at": "2025-12-22T19:17:50.741179Z"
+  },
+  "interactions": [
+    {
+      "id": "stream-events",
+      "description": "stream events for user",
+      "protocol": "grpc",
+      "payload": {
+        "grpc": {
+          "service": "events.EventService",
+          "method": "StreamEvents",
+          "request": {
+            "message": {
+              "limit": 10,
+              "user_id": "user-456"
+            }
+          },
+          "response": {
+            "status": "OK",
+            "message": {
+              "event_id": "evt-001",
+              "properties": {},
+              "timestamp": "2025-01-01T00:00:00Z",
+              "type": "page_view"
+            }
+          },
+          "stream_type": "server_stream"
+        }
+      },
+      "matching_rules": {
+        "$.response.message.event_id": {
+          "match": "type"
+        },
+        "$.response.message.timestamp": {
+          "match": "regex",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        }
+      }
+    }
+  ]
+}
