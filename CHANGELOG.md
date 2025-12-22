@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Testing
 - Added comprehensive test suite for HTTP validator (39% coverage)
 - Added comprehensive test suite for consumer DSL (50% coverage)
+- Added comprehensive test suite for gRPC validator and mock server (70% coverage)
+- Added comprehensive test suite for async validator and message capture (71% coverage)
 
 ## [0.1.0] - 2025-12-22
 
