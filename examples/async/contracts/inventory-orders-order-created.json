@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "id": "3bf02b8c-3305-423d-a732-9ac8101cf251",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "inventory-service"
+    },
+    "provider": {
+      "name": "orders-service"
+    },
+    "status": "draft",
+    "created_at": "2025-12-22T18:21:31.857605Z"
+  },
+  "interactions": [
+    {
+      "id": "order-created-event",
+      "description": "order created event",
+      "protocol": "async",
+      "payload": {
+        "async": {
+          "destination": "orders.created",
+          "direction": "publish",
+          "message": {
+            "headers": {
+              "content-type": "application/json",
+              "event-type": "OrderCreated"
+            },
+            "payload": {
+              "created_at": "2025-01-01T00:00:00Z",
+              "items": [
+                {
+                  "name": "Widget",
+                  "price": 49.99,
+                  "quantity": 2,
+                  "sku": "WIDGET-001"
+                }
+              ],
+              "order_id": "ord-123",
+              "total": 99.99,
+              "user_id": "user-456"
+            }
+          }
+        }
+      },
+      "matching_rules": {
+        "$.message.payload.created_at": {
+          "match": "regex",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "$.message.payload.order_id": {
+          "match": "type"
+        },
+        "$.message.payload.total": {
+          "match": "decimal"
+        },
+        "$.message.payload.user_id": {
+          "match": "type"
+        }
+      }
+    }
+  ]
+}

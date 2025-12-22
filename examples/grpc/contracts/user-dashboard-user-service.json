@@ -1,0 +1,62 @@
+{
+  "metadata": {
+    "id": "096efcc9-412b-4ac0-916c-f63a4360985b",
+    "version": "1.0.0",
+    "consumer": {
+      "name": "user-dashboard"
+    },
+    "provider": {
+      "name": "user-service"
+    },
+    "status": "draft",
+    "created_at": "2025-12-22T18:21:27.390862Z"
+  },
+  "interactions": [
+    {
+      "id": "get-user-by-id",
+      "description": "get user by id",
+      "provider_states": [
+        {
+          "name": "user 123 exists",
+          "params": {
+            "email": "john@example.com",
+            "id": "123",
+            "name": "John Doe"
+          }
+        }
+      ],
+      "protocol": "grpc",
+      "payload": {
+        "grpc": {
+          "service": "users.UserService",
+          "method": "GetUser",
+          "request": {
+            "metadata": {
+              "authorization": "Bearer token123"
+            },
+            "message": {
+              "id": "123"
+            }
+          },
+          "response": {
+            "status": "OK",
+            "metadata": {
+              "x-request-id": "req-123"
+            },
+            "message": {
+              "email": "john@example.com",
+              "id": "123",
+              "name": "John Doe"
+            }
+          },
+          "stream_type": "unary"
+        }
+      },
+      "matching_rules": {
+        "$.response.metadata.x-request-id": {
+          "match": "type"
+        }
+      }
+    }
+  ]
+}

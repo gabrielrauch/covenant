@@ -1,0 +1,89 @@
+services:
+  # Broker with filesystem storage (development)
+  broker:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - covenant-data:/data
+    environment:
+      - COVENANT_STORAGE=filesystem
+      - COVENANT_STORAGE_PATH=/data
+
+  # Broker with PostgreSQL storage (production)
+  broker-postgres:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - COVENANT_STORAGE=postgres
+      - COVENANT_POSTGRES_URL=postgres://covenant:covenant@postgres:5432/covenant?sslmode=disable
+    command: ["broker", "--storage", "postgres", "--postgres-url", "postgres://covenant:covenant@postgres:5432/covenant?sslmode=disable", "--port", "8080"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - postgres
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: covenant
+      POSTGRES_PASSWORD: covenant
+      POSTGRES_DB: covenant
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U covenant"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - postgres
+
+  # Broker with S3 storage (cloud)
+  broker-s3:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+    command: ["broker", "--storage", "s3", "--s3-bucket", "${COVENANT_S3_BUCKET}", "--s3-region", "${AWS_REGION:-us-east-1}", "--port", "8080"]
+    profiles:
+      - s3
+
+  # MinIO for local S3 testing
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    profiles:
+      - s3-local
+
+  broker-minio:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_REGION=us-east-1
+    command: ["broker", "--storage", "s3", "--s3-bucket", "covenant", "--s3-endpoint", "http://minio:9000", "--s3-region", "us-east-1", "--port", "8080"]
+    depends_on:
+      - minio
+    profiles:
+      - s3-local
+
+volumes:
+  covenant-data:
+  postgres-data:
+  minio-data:

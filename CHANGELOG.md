@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot configuration for automated dependency updates
 - Issue and PR templates
 - Makefile for build automation
+- gRPC examples (consumer and provider tests with unary, server-stream, bidirectional)
+- Async messaging examples (event-driven and saga sequence patterns)
+- Architecture documentation (`docs/architecture.md`)
+- Dockerfile with multi-stage build for broker
+- docker-compose.yml with profiles for filesystem, PostgreSQL, and S3 backends
 
 ## [0.1.0] - 2025-12-22
 
