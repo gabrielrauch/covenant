@@ -14,6 +14,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
+	"github.com/gabrielrauch/covenant/pkg/validator/common"
 )
 
 // MaxBodySize is the maximum size of request/response bodies to read (10MB default).
@@ -63,35 +64,14 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 	}
 
 	// Validate response headers
-	if len(payload.Response.Headers) > 0 && actual.Metadata != nil {
-		for key, expectedValue := range payload.Response.Headers {
-			actualValue, ok := actual.Metadata[key]
-			if !ok {
-				actualValue, ok = actual.Metadata[strings.ToLower(key)]
-			}
-			if !ok {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.response.headers.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected header %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				// Check if there's a matching rule for this header
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.response.headers.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.response.headers.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected header %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
-			}
-		}
+	headerErrors := common.ValidateHeaders(
+		payload.Response.Headers,
+		actual.Metadata,
+		interaction.MatchingRules,
+		common.DefaultHTTPHeaderConfig("$.response.headers"),
+	)
+	for _, err := range headerErrors {
+		result.AddError(err)
 	}
 
 	// Validate response body
@@ -157,29 +137,21 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 
 	// Validate headers
 	if len(expected.Headers) > 0 {
-		for key, expectedValue := range expected.Headers {
-			actualValue := req.Header.Get(key)
-			if actualValue == "" {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.request.headers.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected header %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.request.headers.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.request.headers.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected header %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
+		actualHeaders := make(map[string]string)
+		for key, values := range req.Header {
+			if len(values) > 0 {
+				actualHeaders[key] = values[0]
+				actualHeaders[strings.ToLower(key)] = values[0]
 			}
+		}
+		headerErrors := common.ValidateHeaders(
+			expected.Headers,
+			actualHeaders,
+			interaction.MatchingRules,
+			common.DefaultHTTPHeaderConfig("$.request.headers"),
+		)
+		for _, err := range headerErrors {
+			result.AddError(err)
 		}
 	}
 

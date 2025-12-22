@@ -9,6 +9,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
+	"github.com/gabrielrauch/covenant/pkg/validator/common"
 )
 
 // Validator implements async message validation.
@@ -31,31 +32,14 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 	payload := interaction.Payload.Async
 
 	// Validate message headers
-	if len(payload.Message.Headers) > 0 && actual.Metadata != nil {
-		for key, expectedValue := range payload.Message.Headers {
-			actualValue, ok := actual.Metadata[key]
-			if !ok {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.message.headers.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected header %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.message.headers.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.message.headers.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected header %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
-			}
-		}
+	headerErrors := common.ValidateHeaders(
+		payload.Message.Headers,
+		actual.Metadata,
+		interaction.MatchingRules,
+		common.DefaultAsyncHeaderConfig("$.message.headers"),
+	)
+	for _, err := range headerErrors {
+		result.AddError(err)
 	}
 
 	// Validate message payload
@@ -84,31 +68,14 @@ func (v *Validator) ValidateMessage(interaction contract.Interaction, message []
 	expected := interaction.Payload.Async.Message
 
 	// Validate headers
-	if len(expected.Headers) > 0 {
-		for key, expectedValue := range expected.Headers {
-			actualValue, ok := headers[key]
-			if !ok {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.message.headers.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected header %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.message.headers.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.message.headers.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected header %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
-			}
-		}
+	headerErrors := common.ValidateHeaders(
+		expected.Headers,
+		headers,
+		interaction.MatchingRules,
+		common.DefaultAsyncHeaderConfig("$.message.headers"),
+	)
+	for _, err := range headerErrors {
+		result.AddError(err)
 	}
 
 	// Validate payload

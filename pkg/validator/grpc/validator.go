@@ -9,6 +9,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
+	"github.com/gabrielrauch/covenant/pkg/validator/common"
 )
 
 // Validator implements gRPC protocol validation.
@@ -45,32 +46,14 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 	}
 
 	// Validate response metadata
-	if len(payload.Response.Metadata) > 0 && actual.Metadata != nil {
-		for key, expectedValue := range payload.Response.Metadata {
-			actualValue, ok := actual.Metadata[key]
-			if !ok {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.response.metadata.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected metadata %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				// Check for matching rule
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.response.metadata.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.response.metadata.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected metadata %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
-			}
-		}
+	metadataErrors := common.ValidateHeaders(
+		payload.Response.Metadata,
+		actual.Metadata,
+		interaction.MatchingRules,
+		common.DefaultGRPCMetadataConfig("$.response.metadata"),
+	)
+	for _, err := range metadataErrors {
+		result.AddError(err)
 	}
 
 	// Validate response message
@@ -99,31 +82,14 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, message []
 	expected := interaction.Payload.GRPC.Request
 
 	// Validate metadata
-	if len(expected.Metadata) > 0 {
-		for key, expectedValue := range expected.Metadata {
-			actualValue, ok := metadata[key]
-			if !ok {
-				result.AddError(validator.ValidationError{
-					Path:     fmt.Sprintf("$.request.metadata.%s", key),
-					Expected: expectedValue,
-					Actual:   "(missing)",
-					Message:  fmt.Sprintf("expected metadata %s to be present", key),
-				})
-			} else if actualValue != expectedValue {
-				hasRule := false
-				if interaction.MatchingRules != nil {
-					_, hasRule = interaction.MatchingRules[fmt.Sprintf("$.request.metadata.%s", key)]
-				}
-				if !hasRule {
-					result.AddError(validator.ValidationError{
-						Path:     fmt.Sprintf("$.request.metadata.%s", key),
-						Expected: expectedValue,
-						Actual:   actualValue,
-						Message:  fmt.Sprintf("expected metadata %s to be %q, got %q", key, expectedValue, actualValue),
-					})
-				}
-			}
-		}
+	metadataErrors := common.ValidateHeaders(
+		expected.Metadata,
+		metadata,
+		interaction.MatchingRules,
+		common.DefaultGRPCMetadataConfig("$.request.metadata"),
+	)
+	for _, err := range metadataErrors {
+		result.AddError(err)
 	}
 
 	// Validate message
