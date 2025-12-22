@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-22
+
 ### Added
 - CODE_OF_CONDUCT.md with development-focused guidelines
 - .github/CODEOWNERS for automatic PR review assignments
