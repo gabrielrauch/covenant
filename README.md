@@ -3,6 +3,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go Reference](https://pkg.go.dev/badge/github.com/gabrielrauch/covenant.svg)](https://pkg.go.dev/github.com/gabrielrauch/covenant)
+[![CI](https://github.com/gabrielrauch/covenant/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielrauch/covenant/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/gabrielrauch/covenant/graph/badge.svg)](https://codecov.io/gh/gabrielrauch/covenant)
 
 **Consumer-driven contract testing for Go** — supporting HTTP, gRPC, and async messaging protocols.
 
