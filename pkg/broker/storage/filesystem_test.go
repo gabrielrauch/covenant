@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -19,7 +20,7 @@ func TestFilesystemBackend_SaveAndLoad(t *testing.T) {
 	data := []byte(`{"name":"test"}`)
 
 	// Save
-	if err := backend.Save(ctx, key, data); err != nil {
+	if err = backend.Save(ctx, key, data); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
@@ -29,7 +30,7 @@ func TestFilesystemBackend_SaveAndLoad(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	if string(loaded) != string(data) {
+	if !bytes.Equal(loaded, data) {
 		t.Errorf("loaded data mismatch: expected %q, got %q", data, loaded)
 	}
 }
@@ -60,7 +61,7 @@ func TestFilesystemBackend_Delete(t *testing.T) {
 	data := []byte(`{"delete":"me"}`)
 
 	// Save first
-	if err := backend.Save(ctx, key, data); err != nil {
+	if err = backend.Save(ctx, key, data); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
@@ -74,7 +75,7 @@ func TestFilesystemBackend_Delete(t *testing.T) {
 	}
 
 	// Delete
-	if err := backend.Delete(ctx, key); err != nil {
+	if err = backend.Delete(ctx, key); err != nil {
 		t.Fatalf("Delete failed: %v", err)
 	}
 
@@ -120,7 +121,7 @@ func TestFilesystemBackend_List(t *testing.T) {
 	}
 
 	for _, key := range keys {
-		if err := backend.Save(ctx, key, []byte(`{}`)); err != nil {
+		if err = backend.Save(ctx, key, []byte(`{}`)); err != nil {
 			t.Fatalf("Save failed for %s: %v", key, err)
 		}
 	}
@@ -165,7 +166,7 @@ func TestFilesystemBackend_Transaction(t *testing.T) {
 
 	// Create a key to delete
 	deleteKey := "/to-delete.json"
-	if err := backend.Save(ctx, deleteKey, []byte(`{}`)); err != nil {
+	if err = backend.Save(ctx, deleteKey, []byte(`{}`)); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
 
@@ -176,13 +177,14 @@ func TestFilesystemBackend_Transaction(t *testing.T) {
 		{Type: OpDelete, Key: deleteKey},
 	}
 
-	if err := backend.Transaction(ctx, ops); err != nil {
+	if err = backend.Transaction(ctx, ops); err != nil {
 		t.Fatalf("Transaction failed: %v", err)
 	}
 
 	// Verify saves
 	for _, key := range []string{"/tx/file1.json", "/tx/file2.json"} {
-		exists, err := backend.Exists(ctx, key)
+		var exists bool
+		exists, err = backend.Exists(ctx, key)
 		if err != nil {
 			t.Fatalf("Exists failed: %v", err)
 		}
@@ -274,7 +276,10 @@ func TestFilesystemBackend_PathTraversal_TransactionRejected(t *testing.T) {
 	}
 
 	// Verify no files were created (transaction should be all-or-nothing)
-	exists, _ := backend.Exists(ctx, "/valid/key.json")
+	exists, err := backend.Exists(ctx, "/valid/key.json")
+	if err != nil {
+		t.Fatalf("Exists failed: %v", err)
+	}
 	if exists {
 		t.Error("expected no files to be created when transaction contains invalid key")
 	}
@@ -310,7 +315,7 @@ func TestFilesystemBackend_ValidKeys(t *testing.T) {
 				t.Errorf("Load failed for valid key %q: %v", key, err)
 			}
 
-			if string(loaded) != string(data) {
+			if !bytes.Equal(loaded, data) {
 				t.Errorf("data mismatch for %q", key)
 			}
 		})
@@ -328,12 +333,12 @@ func TestFilesystemBackend_OverwriteExisting(t *testing.T) {
 	key := "/test/overwrite.json"
 
 	// Save original
-	if err := backend.Save(ctx, key, []byte(`{"version":1}`)); err != nil {
+	if err = backend.Save(ctx, key, []byte(`{"version":1}`)); err != nil {
 		t.Fatalf("first Save failed: %v", err)
 	}
 
 	// Overwrite
-	if err := backend.Save(ctx, key, []byte(`{"version":2}`)); err != nil {
+	if err = backend.Save(ctx, key, []byte(`{"version":2}`)); err != nil {
 		t.Fatalf("second Save failed: %v", err)
 	}
 

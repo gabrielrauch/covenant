@@ -27,14 +27,14 @@ func NewVerificationService(backend storage.Backend, contracts *ContractService)
 
 // VerificationResult represents the outcome of verifying a provider against a contract.
 type VerificationResult struct {
-	ContractID       string              `json:"contract_id"`
-	ContractVersion  string              `json:"contract_version"`
-	Provider         ServiceVersion      `json:"provider"`
-	Consumer         ServiceVersion      `json:"consumer"`
-	VerifiedAt       time.Time           `json:"verified_at"`
-	DurationMS       int64               `json:"duration_ms"`
-	Success          bool                `json:"success"`
-	Summary          VerificationSummary `json:"summary"`
+	ContractID         string              `json:"contract_id"`
+	ContractVersion    string              `json:"contract_version"`
+	Provider           ServiceVersion      `json:"provider"`
+	Consumer           ServiceVersion      `json:"consumer"`
+	VerifiedAt         time.Time           `json:"verified_at"`
+	DurationMS         int64               `json:"duration_ms"`
+	Success            bool                `json:"success"`
+	Summary            VerificationSummary `json:"summary"`
 	InteractionResults []InteractionResult `json:"interactions"`
 }
 
@@ -132,7 +132,7 @@ func (s *VerificationService) ListResults(ctx context.Context, contractID string
 		return nil, fmt.Errorf("failed to list results: %w", err)
 	}
 
-	var results []VerificationResult
+	results := make([]VerificationResult, 0, len(keys))
 	for _, key := range keys {
 		data, err := s.storage.Load(ctx, key)
 		if err != nil {

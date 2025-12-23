@@ -2,17 +2,22 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 
 	"github.com/gabrielrauch/covenant/pkg/contract"
 )
+
+// contractSummary represents a contract summary from the broker.
+type contractSummary struct {
+	ID       string `json:"id"`
+	Consumer string `json:"consumer"`
+	Provider string `json:"provider"`
+	Version  string `json:"version"`
+}
 
 // Fetch fetches contracts from the broker.
 func Fetch(ctx context.Context, args []string) error {
@@ -34,6 +39,8 @@ func Fetch(ctx context.Context, args []string) error {
 		return err
 	}
 
+	client := NewHTTPClient(*brokerURL)
+
 	// Build query
 	query := url.Values{}
 	if *provider != "" {
@@ -47,39 +54,9 @@ func Fetch(ctx context.Context, args []string) error {
 	}
 
 	// List contracts
-	listURL := *brokerURL + "/contracts"
-	if len(query) > 0 {
-		listURL += "?" + query.Encode()
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "GET", listURL, nil)
+	summaries, err := fetchContractList(ctx, client, query)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to list contracts: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to list contracts: status %d (unable to read body: %w)", resp.StatusCode, err)
-		}
-		return fmt.Errorf("failed to list contracts: %s", string(body))
-	}
-
-	var summaries []struct {
-		ID       string `json:"id"`
-		Consumer string `json:"consumer"`
-		Provider string `json:"provider"`
-		Version  string `json:"version"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&summaries); err != nil {
-		return fmt.Errorf("failed to parse contract list: %w", err)
+		return err
 	}
 
 	if len(summaries) == 0 {
@@ -95,51 +72,41 @@ func Fetch(ctx context.Context, args []string) error {
 	// Fetch each contract
 	fetched := 0
 	for _, summary := range summaries {
-		getURL := fmt.Sprintf("%s/contracts/%s", *brokerURL, summary.ID)
-		req, err := http.NewRequestWithContext(ctx, "GET", getURL, nil)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create request for %s: %v\n", summary.ID, err)
+		if err := fetchAndSaveContract(ctx, client, *outDir, summary); err != nil {
+			fmt.Fprintf(os.Stderr, "%v\n", err)
 			continue
 		}
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to fetch %s: %v\n", summary.ID, err)
-			continue
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to fetch %s: status %d (unable to read body)\n", summary.ID, resp.StatusCode)
-			} else {
-				fmt.Fprintf(os.Stderr, "Failed to fetch %s: %s\n", summary.ID, string(body))
-			}
-			continue
-		}
-
-		var c contract.Contract
-		if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
-			resp.Body.Close()
-			fmt.Fprintf(os.Stderr, "Failed to parse %s: %v\n", summary.ID, err)
-			continue
-		}
-		resp.Body.Close()
-
-		// Save to file
-		filename := fmt.Sprintf("%s-%s-%s.json", summary.Consumer, summary.Provider, summary.Version)
-		outPath := filepath.Join(*outDir, filename)
-
-		if err := contract.SaveToFile(&c, outPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to save %s: %v\n", summary.ID, err)
-			continue
-		}
-
-		fmt.Printf("Fetched %s -> %s\n", summary.ID, filename)
 		fetched++
 	}
 
 	fmt.Printf("\nFetched %d/%d contracts to %s\n", fetched, len(summaries), *outDir)
+	return nil
+}
+
+// fetchContractList retrieves the list of contracts from the broker.
+func fetchContractList(ctx context.Context, client *HTTPClient, query url.Values) ([]contractSummary, error) {
+	var summaries []contractSummary
+	if err := client.GetJSON(ctx, "/contracts", query, &summaries); err != nil {
+		return nil, fmt.Errorf("failed to list contracts: %w", err)
+	}
+	return summaries, nil
+}
+
+// fetchAndSaveContract fetches a single contract and saves it to disk.
+func fetchAndSaveContract(ctx context.Context, client *HTTPClient, outDir string, summary contractSummary) error {
+	var c contract.Contract
+	path := fmt.Sprintf("/contracts/%s", summary.ID)
+	if err := client.GetJSON(ctx, path, nil, &c); err != nil {
+		return fmt.Errorf("failed to fetch %s: %w", summary.ID, err)
+	}
+
+	filename := fmt.Sprintf("%s-%s-%s.json", summary.Consumer, summary.Provider, summary.Version)
+	outPath := filepath.Join(outDir, filename)
+
+	if err := contract.SaveToFile(&c, outPath); err != nil {
+		return fmt.Errorf("failed to save %s: %w", summary.ID, err)
+	}
+
+	fmt.Printf("Fetched %s -> %s\n", summary.ID, filename)
 	return nil
 }

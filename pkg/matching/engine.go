@@ -338,7 +338,7 @@ func normalizeData(data any) (any, error) {
 
 // containsWildcard checks if a path contains wildcard notation.
 func containsWildcard(path string) bool {
-	return len(path) > 0 && (path[len(path)-1] == '*' ||
+	return path != "" && (path[len(path)-1] == '*' ||
 		(len(path) > 1 && path[len(path)-2:] == "[*]") ||
 		contains(path, "[*]"))
 }

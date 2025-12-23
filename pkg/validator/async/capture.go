@@ -47,7 +47,8 @@ func (c *MessageCapture) Capture(destination string, headers map[string]string, 
 	}
 
 	// Try to match against interactions
-	for _, interaction := range c.interactions {
+	for i := range c.interactions {
+		interaction := &c.interactions[i]
 		if interaction.Payload.Async == nil {
 			continue
 		}
@@ -110,7 +111,7 @@ func (c *MessageCapture) Verify() validator.ValidationResult {
 
 		count := c.matched[interaction.ID]
 		if count == 0 {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    interaction.ID,
 				Message: fmt.Sprintf("expected message %q was never captured", interaction.Description),
 			})
@@ -120,7 +121,7 @@ func (c *MessageCapture) Verify() validator.ValidationResult {
 	// Check for unmatched captures
 	for _, msg := range c.captured {
 		if !msg.Matched {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    msg.Destination,
 				Message: fmt.Sprintf("captured message to %s did not match any interaction", msg.Destination),
 			})
@@ -265,7 +266,11 @@ func (a *TransportAdapter) Publish(ctx interface{}, destination string, headers 
 }
 
 // ToJSON converts a value to JSON bytes.
+// Returns nil if marshaling fails.
 func ToJSON(v any) []byte {
-	data, _ := json.Marshal(v)
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
 	return data
 }

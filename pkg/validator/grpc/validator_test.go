@@ -111,7 +111,7 @@ func TestValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.Validate(context.Background(), tt.interaction, tt.actual)
+			result := v.Validate(context.Background(), &tt.interaction, tt.actual)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("Validate() success = %v, want %v, errors: %v",
@@ -182,7 +182,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.ValidateRequest(tt.interaction, tt.message, tt.metadata)
+			result := v.ValidateRequest(&tt.interaction, tt.message, tt.metadata)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("ValidateRequest() success = %v, want %v, errors: %v",
@@ -225,7 +225,7 @@ func TestValidator_validateMessage(t *testing.T) {
 			[]byte(`{"id": "different"}`),
 			"$.response.message",
 			contract.MatchingRules{
-				"$.response.message.id": {Match: contract.MatchType_},
+				"$.response.message.id": {Match: contract.MatchTypeValue},
 			},
 		)
 		if !result.Success {
@@ -243,7 +243,7 @@ func TestNewStreamValidator(t *testing.T) {
 		},
 	}
 
-	sv := NewStreamValidator(interaction)
+	sv := NewStreamValidator(&interaction)
 	if sv == nil {
 		t.Fatal("NewStreamValidator returned nil")
 	}
@@ -254,7 +254,7 @@ func TestStreamValidator_ValidateClientMessage(t *testing.T) {
 		interaction := contract.Interaction{
 			Payload: contract.Payload{},
 		}
-		sv := NewStreamValidator(interaction)
+		sv := NewStreamValidator(&interaction)
 		sv.ValidateClientMessage([]byte(`{}`), nil)
 
 		result := sv.Result()
@@ -282,8 +282,11 @@ func TestStreamValidator_ValidateClientMessage(t *testing.T) {
 			},
 		}
 
-		sv := NewStreamValidator(interaction)
-		msg, _ := json.Marshal(map[string]any{"text": "hello"})
+		sv := NewStreamValidator(&interaction)
+		msg, err := json.Marshal(map[string]any{"text": "hello"})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg: %v", err)
+		}
 		sv.ValidateClientMessage(msg, nil)
 
 		result := sv.Result()
@@ -305,8 +308,11 @@ func TestStreamValidator_ValidateClientMessage(t *testing.T) {
 			},
 		}
 
-		sv := NewStreamValidator(interaction)
-		msg, _ := json.Marshal(map[string]any{"value": 10})
+		sv := NewStreamValidator(&interaction)
+		msg, err := json.Marshal(map[string]any{"value": 10})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg: %v", err)
+		}
 		sv.ValidateClientMessage(msg, nil)
 
 		result := sv.Result()
@@ -321,7 +327,7 @@ func TestStreamValidator_ValidateServerMessage(t *testing.T) {
 		interaction := contract.Interaction{
 			Payload: contract.Payload{},
 		}
-		sv := NewStreamValidator(interaction)
+		sv := NewStreamValidator(&interaction)
 		sv.ValidateServerMessage([]byte(`{}`), nil)
 
 		result := sv.Result()
@@ -342,8 +348,11 @@ func TestStreamValidator_ValidateServerMessage(t *testing.T) {
 			},
 		}
 
-		sv := NewStreamValidator(interaction)
-		msg, _ := json.Marshal(map[string]any{"event": "data"})
+		sv := NewStreamValidator(&interaction)
+		msg, err := json.Marshal(map[string]any{"event": "data"})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg: %v", err)
+		}
 		sv.ValidateServerMessage(msg, nil)
 
 		result := sv.Result()
@@ -362,7 +371,7 @@ func TestStreamValidator_Result(t *testing.T) {
 		},
 	}
 
-	sv := NewStreamValidator(interaction)
+	sv := NewStreamValidator(&interaction)
 	result := sv.Result()
 
 	if !result.Success {

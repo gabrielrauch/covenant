@@ -154,7 +154,7 @@ func TestValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.Validate(context.Background(), tt.interaction, tt.actual)
+			result := v.Validate(context.Background(), &tt.interaction, tt.actual)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("Validate() success = %v, want %v", result.Success, tt.wantSuccess)
@@ -179,7 +179,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 			interaction: contract.Interaction{
 				Payload: contract.Payload{},
 			},
-			request:     httptest.NewRequest("GET", "/test", nil),
+			request:     httptest.NewRequest("GET", "/test", http.NoBody),
 			wantSuccess: false,
 		},
 		{
@@ -194,7 +194,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request:     httptest.NewRequest("GET", "/test", nil),
+			request:     httptest.NewRequest("GET", "/test", http.NoBody),
 			wantSuccess: true,
 		},
 		{
@@ -209,7 +209,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request:     httptest.NewRequest("GET", "/test", nil),
+			request:     httptest.NewRequest("GET", "/test", http.NoBody),
 			wantSuccess: false,
 		},
 		{
@@ -224,7 +224,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request:     httptest.NewRequest("GET", "/actual", nil),
+			request:     httptest.NewRequest("GET", "/actual", http.NoBody),
 			wantSuccess: false,
 		},
 		{
@@ -242,7 +242,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request:     httptest.NewRequest("GET", "/test?page=1", nil),
+			request:     httptest.NewRequest("GET", "/test?page=1", http.NoBody),
 			wantSuccess: true,
 		},
 		{
@@ -260,7 +260,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request:     httptest.NewRequest("GET", "/test?page=2", nil),
+			request:     httptest.NewRequest("GET", "/test?page=2", http.NoBody),
 			wantSuccess: false,
 		},
 		{
@@ -279,7 +279,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 				},
 			},
 			request: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequest("GET", "/test", http.NoBody)
 				req.Header.Set("Authorization", "Bearer token")
 				return req
 			}(),
@@ -300,7 +300,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 					},
 				},
 			},
-			request: httptest.NewRequest("POST", "/test", strings.NewReader(`{"name": "test"}`)),
+			request:     httptest.NewRequest("POST", "/test", strings.NewReader(`{"name": "test"}`)),
 			wantSuccess: true,
 		},
 	}
@@ -308,7 +308,7 @@ func TestValidator_ValidateRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.ValidateRequest(tt.interaction, tt.request)
+			result := v.ValidateRequest(&tt.interaction, tt.request)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("ValidateRequest() success = %v, want %v, errors: %v",
@@ -324,7 +324,9 @@ func TestValidator_ExecuteInteraction(t *testing.T) {
 		if r.URL.Path == "/users/123" && r.Method == "GET" {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"id": "123", "name": "John"}`))
+			if _, err := w.Write([]byte(`{"id": "123", "name": "John"}`)); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
@@ -345,7 +347,7 @@ func TestValidator_ExecuteInteraction(t *testing.T) {
 			},
 		}
 
-		resp, err := v.ExecuteInteraction(context.Background(), server.URL, interaction)
+		resp, err := v.ExecuteInteraction(context.Background(), server.URL, &interaction)
 		if err != nil {
 			t.Fatalf("ExecuteInteraction failed: %v", err)
 		}
@@ -361,7 +363,10 @@ func TestValidator_ExecuteInteraction(t *testing.T) {
 			Payload: contract.Payload{},
 		}
 
-		_, err := v.ExecuteInteraction(context.Background(), server.URL, interaction)
+		resp, err := v.ExecuteInteraction(context.Background(), server.URL, &interaction)
+		if resp != nil {
+			defer resp.Body.Close()
+		}
 		if err == nil {
 			t.Error("Expected error for missing HTTP payload")
 		}
@@ -382,7 +387,7 @@ func TestValidator_ExecuteInteraction(t *testing.T) {
 			},
 		}
 
-		resp, err := v.ExecuteInteraction(context.Background(), server.URL, interaction)
+		resp, err := v.ExecuteInteraction(context.Background(), server.URL, &interaction)
 		if err != nil {
 			t.Fatalf("ExecuteInteraction failed: %v", err)
 		}
@@ -407,7 +412,7 @@ func TestValidator_ExecuteInteraction(t *testing.T) {
 			},
 		}
 
-		resp, err := v.ExecuteInteraction(context.Background(), server.URL, interaction)
+		resp, err := v.ExecuteInteraction(context.Background(), server.URL, &interaction)
 		if err != nil {
 			t.Fatalf("ExecuteInteraction failed: %v", err)
 		}
@@ -443,7 +448,7 @@ func TestValidator_ValidateResponse(t *testing.T) {
 			Body: io.NopCloser(bytes.NewReader([]byte(`{"id": "123"}`))),
 		}
 
-		result := v.ValidateResponse(interaction, resp, nil)
+		result := v.ValidateResponse(&interaction, resp, nil)
 		if !result.Success {
 			t.Errorf("Expected success, got errors: %v", result.Errors)
 		}
@@ -459,7 +464,7 @@ func TestValidator_ValidateResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewReader([]byte(`{}`))),
 		}
 
-		result := v.ValidateResponse(interaction, resp, nil)
+		result := v.ValidateResponse(&interaction, resp, nil)
 		if result.Success {
 			t.Error("Expected failure for missing HTTP payload")
 		}
@@ -478,7 +483,7 @@ func TestValidator_ValidateResponse(t *testing.T) {
 				},
 			},
 			MatchingRules: contract.MatchingRules{
-				"$.response.body.id": {Match: contract.MatchType_},
+				"$.response.body.id": {Match: contract.MatchTypeValue},
 			},
 		}
 
@@ -488,7 +493,7 @@ func TestValidator_ValidateResponse(t *testing.T) {
 			Body:       io.NopCloser(bytes.NewReader([]byte(`{"id": "different-id"}`))),
 		}
 
-		result := v.ValidateResponse(interaction, resp, nil)
+		result := v.ValidateResponse(&interaction, resp, nil)
 		if !result.Success {
 			t.Errorf("Expected success with type matcher, got errors: %v", result.Errors)
 		}

@@ -10,7 +10,7 @@ import (
 // Validator validates actual data against contract interactions.
 type Validator interface {
 	// Validate checks if actual data matches the contract interaction.
-	Validate(ctx context.Context, interaction contract.Interaction, actual ActualData) ValidationResult
+	Validate(ctx context.Context, interaction *contract.Interaction, actual ActualData) ValidationResult
 }
 
 // ActualData represents captured request/response data for validation.
@@ -37,9 +37,9 @@ type ValidationError struct {
 }
 
 // AddError adds a validation error to the result and marks it as failed.
-func (r *ValidationResult) AddError(err ValidationError) {
+func (r *ValidationResult) AddError(err *ValidationError) {
 	r.Success = false
-	r.Errors = append(r.Errors, err)
+	r.Errors = append(r.Errors, *err)
 }
 
 // Merge combines another result into this one.

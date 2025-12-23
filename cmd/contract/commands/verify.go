@@ -16,144 +16,38 @@ import (
 	httpvalidator "github.com/gabrielrauch/covenant/pkg/validator/http"
 )
 
+type verifyConfig struct {
+	brokerURL       string
+	providerURL     string
+	providerName    string
+	providerVersion string
+	contractDir     string
+	publishResults  bool
+}
+
 // Verify verifies a provider against contracts.
 func Verify(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
-	brokerURL := fs.String("broker", getEnv("COVENANT_BROKER_URL", "http://localhost:8080"), "broker URL")
-	providerURL := fs.String("provider-url", "", "provider base URL (required)")
-	providerName := fs.String("provider", "", "provider name (required)")
-	providerVersion := fs.String("provider-version", "", "provider version (required)")
-	contractDir := fs.String("contracts", "./contracts", "directory containing contracts")
-	publishResults := fs.Bool("publish", true, "publish results to broker")
-
-	fs.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage: covenant verify [options]")
-		fmt.Fprintln(os.Stderr, "\nVerifies a provider against contracts.")
-		fmt.Fprintln(os.Stderr, "\nOptions:")
-		fs.PrintDefaults()
-	}
-
-	if err := fs.Parse(args); err != nil {
+	cfg, err := parseVerifyFlags(args)
+	if err != nil {
 		return err
 	}
 
-	if *providerURL == "" || *providerName == "" || *providerVersion == "" {
-		return fmt.Errorf("--provider-url, --provider, and --provider-version are required")
-	}
-
-	// Find contract files
-	files, err := filepath.Glob(filepath.Join(*contractDir, "*.json"))
+	files, err := findContractFiles(cfg.contractDir)
 	if err != nil {
-		return fmt.Errorf("failed to find contract files: %w", err)
-	}
-
-	if len(files) == 0 {
-		return fmt.Errorf("no contract files found in %s", *contractDir)
+		return err
 	}
 
 	validator := httpvalidator.NewValidator()
-	client := &http.Client{}
-
-	totalPassed := 0
-	totalFailed := 0
+	totalPassed, totalFailed := 0, 0
 
 	for _, file := range files {
-		c, err := contract.LoadFromFile(file)
+		passed, failed, err := verifyContractFile(ctx, cfg, validator, file)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Skipping %s: %v\n", file, err)
 			continue
 		}
-
-		// Only verify contracts where we are the provider
-		if c.Metadata.Provider.Name != *providerName {
-			continue
-		}
-
-		fmt.Printf("\n=== Verifying contract: %s ===\n", filepath.Base(file))
-		fmt.Printf("Consumer: %s, Provider: %s v%s\n", c.Metadata.Consumer.Name, c.Metadata.Provider.Name, c.Metadata.Version)
-
-		result := api.VerificationResult{
-			ContractID:      c.Metadata.ID,
-			ContractVersion: c.Metadata.Version,
-			Provider:        api.ServiceVersion{Name: *providerName, Version: *providerVersion},
-			Consumer:        api.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
-			VerifiedAt:      time.Now().UTC(),
-		}
-
-		start := time.Now()
-
-		for _, interaction := range c.Interactions {
-			if interaction.Protocol != contract.ProtocolHTTP || interaction.Payload.HTTP == nil {
-				continue
-			}
-
-			fmt.Printf("\n  Testing: %s...", interaction.Description)
-			interactionStart := time.Now()
-
-			// Execute the interaction
-			resp, err := validator.ExecuteInteraction(ctx, *providerURL, interaction)
-			if err != nil {
-				fmt.Printf(" ERROR: %v\n", err)
-				result.InteractionResults = append(result.InteractionResults, api.InteractionResult{
-					ID:          interaction.ID,
-					Description: interaction.Description,
-					Success:     false,
-					DurationMS:  time.Since(interactionStart).Milliseconds(),
-					Errors:      []api.InteractionError{{Message: err.Error()}},
-				})
-				totalFailed++
-				continue
-			}
-
-			// Validate the response
-			validationResult := validator.ValidateResponse(interaction, resp, c.MatchingRules)
-			resp.Body.Close()
-
-			interactionResult := api.InteractionResult{
-				ID:          interaction.ID,
-				Description: interaction.Description,
-				Success:     validationResult.Success,
-				DurationMS:  time.Since(interactionStart).Milliseconds(),
-			}
-
-			if validationResult.Success {
-				fmt.Printf(" PASSED (%dms)\n", interactionResult.DurationMS)
-				totalPassed++
-			} else {
-				fmt.Printf(" FAILED\n")
-				for _, err := range validationResult.Errors {
-					fmt.Printf("    - %s: %s\n", err.Path, err.Message)
-					interactionResult.Errors = append(interactionResult.Errors, api.InteractionError{
-						Path:     err.Path,
-						Expected: err.Expected,
-						Actual:   err.Actual,
-						Rule:     err.Rule,
-						Message:  err.Message,
-					})
-				}
-				totalFailed++
-			}
-
-			result.InteractionResults = append(result.InteractionResults, interactionResult)
-		}
-
-		result.DurationMS = time.Since(start).Milliseconds()
-
-		// Publish results to broker
-		if *publishResults && *brokerURL != "" {
-			data, _ := json.Marshal(result)
-			req, err := http.NewRequestWithContext(ctx, "POST", *brokerURL+"/verifications", bytes.NewReader(data))
-			if err == nil {
-				req.Header.Set("Content-Type", "application/json")
-				resp, err := client.Do(req)
-				if err == nil {
-					resp.Body.Close()
-					if resp.StatusCode == http.StatusCreated {
-						fmt.Printf("\nResults published to broker\n")
-					}
-				}
-			}
-		}
+		totalPassed += passed
+		totalFailed += failed
 	}
 
 	fmt.Printf("\n=== Summary ===\n")
@@ -164,4 +58,166 @@ func Verify(ctx context.Context, args []string) error {
 	}
 
 	return nil
+}
+
+func parseVerifyFlags(args []string) (*verifyConfig, error) {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	cfg := &verifyConfig{}
+
+	fs.StringVar(&cfg.brokerURL, "broker", getEnv("COVENANT_BROKER_URL", "http://localhost:8080"), "broker URL")
+	fs.StringVar(&cfg.providerURL, "provider-url", "", "provider base URL (required)")
+	fs.StringVar(&cfg.providerName, "provider", "", "provider name (required)")
+	fs.StringVar(&cfg.providerVersion, "provider-version", "", "provider version (required)")
+	fs.StringVar(&cfg.contractDir, "contracts", "./contracts", "directory containing contracts")
+	fs.BoolVar(&cfg.publishResults, "publish", true, "publish results to broker")
+
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, "Usage: covenant verify [options]")
+		fmt.Fprintln(os.Stderr, "\nVerifies a provider against contracts.")
+		fmt.Fprintln(os.Stderr, "\nOptions:")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return nil, err
+	}
+
+	if cfg.providerURL == "" || cfg.providerName == "" || cfg.providerVersion == "" {
+		return nil, fmt.Errorf("--provider-url, --provider, and --provider-version are required")
+	}
+
+	return cfg, nil
+}
+
+func findContractFiles(dir string) ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to find contract files: %w", err)
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no contract files found in %s", dir)
+	}
+	return files, nil
+}
+
+func verifyContractFile(ctx context.Context, cfg *verifyConfig, validator *httpvalidator.Validator, file string) (passed, failed int, err error) {
+	c, err := contract.LoadFromFile(file)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if c.Metadata.Provider.Name != cfg.providerName {
+		return 0, 0, nil
+	}
+
+	fmt.Printf("\n=== Verifying contract: %s ===\n", filepath.Base(file))
+	fmt.Printf("Consumer: %s, Provider: %s v%s\n", c.Metadata.Consumer.Name, c.Metadata.Provider.Name, c.Metadata.Version)
+
+	result := api.VerificationResult{
+		ContractID:      c.Metadata.ID,
+		ContractVersion: c.Metadata.Version,
+		Provider:        api.ServiceVersion{Name: cfg.providerName, Version: cfg.providerVersion},
+		Consumer:        api.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
+		VerifiedAt:      time.Now().UTC(),
+	}
+
+	start := time.Now()
+	passed, failed = verifyInteractions(ctx, cfg, validator, c, &result)
+	result.DurationMS = time.Since(start).Milliseconds()
+
+	if cfg.publishResults && cfg.brokerURL != "" {
+		publishVerificationResults(ctx, cfg.brokerURL, &result)
+	}
+
+	return passed, failed, nil
+}
+
+func verifyInteractions(ctx context.Context, cfg *verifyConfig, validator *httpvalidator.Validator, c *contract.Contract, result *api.VerificationResult) (passed, failed int) {
+	for i := range c.Interactions {
+		interaction := &c.Interactions[i]
+		if interaction.Protocol != contract.ProtocolHTTP || interaction.Payload.HTTP == nil {
+			continue
+		}
+
+		interactionResult := verifyInteraction(ctx, cfg.providerURL, validator, interaction, c.MatchingRules)
+		result.InteractionResults = append(result.InteractionResults, interactionResult)
+
+		if interactionResult.Success {
+			passed++
+		} else {
+			failed++
+		}
+	}
+	return passed, failed
+}
+
+func verifyInteraction(ctx context.Context, providerURL string, validator *httpvalidator.Validator, interaction *contract.Interaction, rules contract.MatchingRules) api.InteractionResult {
+	fmt.Printf("\n  Testing: %s...", interaction.Description)
+	start := time.Now()
+
+	resp, err := validator.ExecuteInteraction(ctx, providerURL, interaction)
+	if err != nil {
+		fmt.Printf(" ERROR: %v\n", err)
+		return api.InteractionResult{
+			ID:          interaction.ID,
+			Description: interaction.Description,
+			Success:     false,
+			DurationMS:  time.Since(start).Milliseconds(),
+			Errors:      []api.InteractionError{{Message: err.Error()}},
+		}
+	}
+	defer resp.Body.Close()
+
+	validationResult := validator.ValidateResponse(interaction, resp, rules)
+	interactionResult := api.InteractionResult{
+		ID:          interaction.ID,
+		Description: interaction.Description,
+		Success:     validationResult.Success,
+		DurationMS:  time.Since(start).Milliseconds(),
+	}
+
+	if validationResult.Success {
+		fmt.Printf(" PASSED (%dms)\n", interactionResult.DurationMS)
+	} else {
+		fmt.Printf(" FAILED\n")
+		for _, e := range validationResult.Errors {
+			fmt.Printf("    - %s: %s\n", e.Path, e.Message)
+			interactionResult.Errors = append(interactionResult.Errors, api.InteractionError{
+				Path:     e.Path,
+				Expected: e.Expected,
+				Actual:   e.Actual,
+				Rule:     e.Rule,
+				Message:  e.Message,
+			})
+		}
+	}
+
+	return interactionResult
+}
+
+func publishVerificationResults(ctx context.Context, brokerURL string, result *api.VerificationResult) {
+	data, err := json.Marshal(result)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to marshal results: %v\n", err)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", brokerURL+"/verifications", bytes.NewReader(data))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create request: %v\n", err)
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to publish results: %v\n", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusCreated {
+		fmt.Printf("\nResults published to broker\n")
+	}
 }

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-12-22
+
+### Added
+- Shared HTTP client abstraction for CLI commands (`cmd/contract/commands/http.go`)
+
+### Changed
+- Replace deprecated `exportloopref` linter with `copyloopvar` for Go 1.22+ compatibility
+- Refactored CLI commands to reduce cyclomatic complexity:
+  - `fetch.go`: 20 → ~9 (extracted `fetchContractList`, `fetchAndSaveContract`)
+  - `candeploy.go`: 16 → ~6 (extracted `printCanDeployResult`)
+  - `publish.go`: 16 → ~8 (extracted `ensureTagInContract`, `publishContract`)
+- Refactored broker API to reduce cyclomatic complexity:
+  - `deploy.go` `CanDeploy`: 17 → ~7 (extracted provider/consumer verification helpers)
+  - `deploy.go` `GetMatrix`: 18 → ~8 (extracted `extractServices`, `groupContractsByPair`, `buildMatrixCell`)
+- Refactored matching rules compiler to extract helper functions (`compileRegexRule`, `compileIncludeRule`, `compileNullOrRule`)
+- Changed `contract.Interaction` to pointer type in validator interfaces for better performance
+- Changed `ValidationError` to use pointer receivers consistently
+- Improved struct field alignment across contract model types
+- Pre-allocate slices where capacity is known for better memory efficiency
+
+### Fixed
+- All golangci-lint gocyclo violations resolved (threshold: 15)
+
 ## [0.2.0] - 2025-12-22
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "71975453-6fd7-472b-8369-304ec7fafa9d",
+    "id": "66b04b13-892e-42ca-a58d-7ca5ef71163f",
     "version": "1.0.0",
     "consumer": {
       "name": "notification-service"
@@ -9,7 +9,7 @@
       "name": "user-service"
     },
     "status": "draft",
-    "created_at": "2025-12-22T19:19:37.58299Z"
+    "created_at": "2025-12-23T00:12:56.765769Z"
   },
   "interactions": [
     {

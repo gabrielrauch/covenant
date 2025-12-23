@@ -14,6 +14,10 @@ import (
 const version = "0.1.0"
 
 func main() {
+	os.Exit(mainWithExitCode())
+}
+
+func mainWithExitCode() int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -27,8 +31,9 @@ func main() {
 
 	if err := run(ctx, os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 func run(ctx context.Context, args []string) error {

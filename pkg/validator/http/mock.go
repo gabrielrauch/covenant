@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/validator"
@@ -35,7 +36,7 @@ type MockServer struct {
 	listener     net.Listener
 	validator    *Validator
 
-	mu              sync.RWMutex
+	mu               sync.RWMutex
 	receivedRequests []RecordedRequest
 	matchedRequests  map[string]int // interaction ID -> match count
 }
@@ -85,7 +86,8 @@ func (s *MockServer) Start() error {
 	s.listener = listener
 
 	s.server = &http.Server{
-		Handler: s,
+		Handler:           s,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	go func() {
@@ -141,7 +143,7 @@ func (s *MockServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	interaction, err := s.findMatchingInteraction(r)
 	if err != nil {
 		recorded.Error = err.Error()
-		s.recordRequest(recorded)
+		s.recordRequest(&recorded)
 
 		switch s.mode {
 		case MockModeStrict:
@@ -154,10 +156,10 @@ func (s *MockServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Validate the request against the contract
 	r.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // Reset body
-	result := s.validator.ValidateRequest(*interaction, r)
+	result := s.validator.ValidateRequest(interaction, r)
 	if !result.Success {
 		recorded.Error = fmt.Sprintf("request validation failed: %v", formatValidationErrors(result.Errors))
-		s.recordRequest(recorded)
+		s.recordRequest(&recorded)
 
 		if s.mode == MockModeStrict {
 			http.Error(w, recorded.Error, http.StatusBadRequest)
@@ -167,7 +169,7 @@ func (s *MockServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Record successful match
 	recorded.Matched = true
-	s.recordRequest(recorded)
+	s.recordRequest(&recorded)
 	s.incrementMatchCount(interaction.ID)
 
 	// Build and send response
@@ -274,13 +276,15 @@ func (s *MockServer) sendResponse(w http.ResponseWriter, interaction *contract.I
 	if response.Body != nil {
 		body := s.processBodyTemplate(response.Body, interaction)
 		if bodyBytes, err := json.Marshal(body); err == nil {
-			w.Write(bodyBytes)
+			if _, err := w.Write(bodyBytes); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 		}
 	}
 }
 
 // processTemplate processes template substitutions in a string value.
-func (s *MockServer) processTemplate(value string, interaction *contract.Interaction) string {
+func (s *MockServer) processTemplate(value string, _ *contract.Interaction) string {
 	// Replace ${now()} with current timestamp
 	if strings.Contains(value, "${now()}") {
 		// Implementation would use time.Now().Format(time.RFC3339)
@@ -319,10 +323,10 @@ func (s *MockServer) processBodyTemplate(body any, interaction *contract.Interac
 }
 
 // recordRequest records a request for later analysis.
-func (s *MockServer) recordRequest(req RecordedRequest) {
+func (s *MockServer) recordRequest(req *RecordedRequest) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.receivedRequests = append(s.receivedRequests, req)
+	s.receivedRequests = append(s.receivedRequests, *req)
 }
 
 // incrementMatchCount increments the match counter for an interaction.
@@ -366,7 +370,7 @@ func (s *MockServer) Verify() validator.ValidationResult {
 
 		count := s.matchedRequests[interaction.ID]
 		if count == 0 {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    interaction.ID,
 				Message: fmt.Sprintf("interaction %q was never matched", interaction.Description),
 			})
@@ -376,7 +380,7 @@ func (s *MockServer) Verify() validator.ValidationResult {
 	// Check for validation errors in recorded requests
 	for _, req := range s.receivedRequests {
 		if req.Error != "" {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    req.Path,
 				Message: fmt.Sprintf("%s %s: %s", req.Method, req.Path, req.Error),
 			})
@@ -400,7 +404,7 @@ func formatValidationErrors(errors []validator.ValidationError) string {
 		return ""
 	}
 
-	var messages []string
+	messages := make([]string, 0, len(errors))
 	for _, err := range errors {
 		messages = append(messages, err.Message)
 	}

@@ -2,11 +2,15 @@
 package consumer
 
 import (
+	"log"
 	"time"
 
-	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/google/uuid"
+
+	"github.com/gabrielrauch/covenant/pkg/contract"
 )
+
+const contentTypeJSON = "application/json"
 
 // Contract is a fluent builder for creating contracts.
 type Contract struct {
@@ -69,7 +73,9 @@ func (c *Contract) AddInteraction(interaction *Interaction) *Contract {
 
 // Build returns the completed contract.
 func (c *Contract) Build() *contract.Contract {
-	contract.UpdateChecksum(c.contract)
+	if err := contract.UpdateChecksum(c.contract); err != nil {
+		log.Printf("Warning: failed to update contract checksum: %v", err)
+	}
 	return c.contract
 }
 
@@ -155,7 +161,7 @@ func (b *HTTPRequestBuilder) WithJSONBody(body any) *HTTPRequestBuilder {
 	if b.interaction.interaction.Payload.HTTP.Request.Headers == nil {
 		b.interaction.interaction.Payload.HTTP.Request.Headers = make(map[string]string)
 	}
-	b.interaction.interaction.Payload.HTTP.Request.Headers["Content-Type"] = "application/json"
+	b.interaction.interaction.Payload.HTTP.Request.Headers["Content-Type"] = contentTypeJSON
 	return b
 }
 
@@ -187,7 +193,7 @@ func (b *HTTPResponseBuilder) WithJSONBody(body any) *HTTPResponseBuilder {
 	if b.interaction.interaction.Payload.HTTP.Response.Headers == nil {
 		b.interaction.interaction.Payload.HTTP.Response.Headers = make(map[string]string)
 	}
-	b.interaction.interaction.Payload.HTTP.Response.Headers["Content-Type"] = "application/json"
+	b.interaction.interaction.Payload.HTTP.Response.Headers["Content-Type"] = contentTypeJSON
 	return b
 }
 
@@ -200,7 +206,7 @@ func (b *HTTPResponseBuilder) Build() *Interaction {
 
 // TypeMatcher creates a type matching rule.
 func TypeMatcher() contract.MatchingRule {
-	return contract.MatchingRule{Match: contract.MatchType_}
+	return contract.MatchingRule{Match: contract.MatchTypeValue}
 }
 
 // RegexMatcher creates a regex matching rule.
@@ -224,8 +230,8 @@ func IncludeMatcher(substring string) contract.MatchingRule {
 }
 
 // EachLikeMatcher creates an each_like matching rule.
-func EachLikeMatcher(min int) contract.MatchingRule {
-	return contract.MatchingRule{Match: contract.MatchEachLike, Min: &min}
+func EachLikeMatcher(minCount int) contract.MatchingRule {
+	return contract.MatchingRule{Match: contract.MatchEachLike, Min: &minCount}
 }
 
 // OptionalMatcher creates an optional matching rule.

@@ -32,46 +32,58 @@ func Compile(def contract.MatchingRule) (Rule, error) {
 	switch def.Match {
 	case contract.MatchExact:
 		return &exactRule{expected: def.Value}, nil
-	case contract.MatchType_:
+	case contract.MatchTypeValue:
 		return &typeRule{}, nil
 	case contract.MatchRegex:
-		if def.Pattern == "" {
-			return nil, fmt.Errorf("regex rule requires pattern")
-		}
-		re, err := regexp.Compile(def.Pattern)
-		if err != nil {
-			return nil, fmt.Errorf("invalid regex pattern: %w", err)
-		}
-		return &regexRule{pattern: re, patternStr: def.Pattern}, nil
+		return compileRegexRule(def)
 	case contract.MatchInteger:
 		return &integerRule{}, nil
 	case contract.MatchDecimal:
 		return &decimalRule{}, nil
 	case contract.MatchInclude:
-		if def.Value == nil {
-			return nil, fmt.Errorf("include rule requires value")
-		}
-		substr, ok := def.Value.(string)
-		if !ok {
-			return nil, fmt.Errorf("include rule value must be a string")
-		}
-		return &includeRule{substring: substr}, nil
+		return compileIncludeRule(def)
 	case contract.MatchEachLike:
 		return &eachLikeRule{min: def.Min, max: def.Max}, nil
 	case contract.MatchOptional:
 		return &optionalRule{}, nil
 	case contract.MatchNullOr:
-		if def.Rule == nil {
-			return nil, fmt.Errorf("null_or rule requires inner rule")
-		}
-		inner, err := Compile(*def.Rule)
-		if err != nil {
-			return nil, fmt.Errorf("invalid inner rule for null_or: %w", err)
-		}
-		return &nullOrRule{inner: inner}, nil
+		return compileNullOrRule(def)
 	default:
 		return nil, fmt.Errorf("unknown match type: %s", def.Match)
 	}
+}
+
+func compileRegexRule(def contract.MatchingRule) (Rule, error) {
+	if def.Pattern == "" {
+		return nil, fmt.Errorf("regex rule requires pattern")
+	}
+	re, err := regexp.Compile(def.Pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
+	}
+	return &regexRule{pattern: re, patternStr: def.Pattern}, nil
+}
+
+func compileIncludeRule(def contract.MatchingRule) (Rule, error) {
+	if def.Value == nil {
+		return nil, fmt.Errorf("include rule requires value")
+	}
+	substr, ok := def.Value.(string)
+	if !ok {
+		return nil, fmt.Errorf("include rule value must be a string")
+	}
+	return &includeRule{substring: substr}, nil
+}
+
+func compileNullOrRule(def contract.MatchingRule) (Rule, error) {
+	if def.Rule == nil {
+		return nil, fmt.Errorf("null_or rule requires inner rule")
+	}
+	inner, err := Compile(*def.Rule)
+	if err != nil {
+		return nil, fmt.Errorf("invalid inner rule for null_or: %w", err)
+	}
+	return &nullOrRule{inner: inner}, nil
 }
 
 // exactRule matches values that are exactly equal.
@@ -305,7 +317,6 @@ func (r *nullOrRule) String() string {
 
 // deepEqual performs a deep equality check.
 func deepEqual(a, b any) bool {
-	// Handle nil cases
 	if a == nil && b == nil {
 		return true
 	}
@@ -313,44 +324,39 @@ func deepEqual(a, b any) bool {
 		return false
 	}
 
-	// Handle numeric comparisons (JSON unmarshals numbers as float64)
-	switch av := a.(type) {
-	case float64:
-		switch bv := b.(type) {
-		case float64:
-			return av == bv
-		case int:
-			return av == float64(bv)
-		case int64:
-			return av == float64(bv)
-		}
-	case int:
-		switch bv := b.(type) {
-		case float64:
-			return float64(av) == bv
-		case int:
-			return av == bv
-		case int64:
-			return int64(av) == bv
-		}
-	case int64:
-		switch bv := b.(type) {
-		case float64:
-			return float64(av) == bv
-		case int:
-			return av == int64(bv)
-		case int64:
-			return av == bv
-		}
+	if result, handled := compareNumeric(a, b); handled {
+		return result
 	}
 
-	// Use fmt comparison for other types
 	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+}
+
+// compareNumeric handles numeric comparisons since JSON unmarshals numbers as float64.
+func compareNumeric(a, b any) (equal, handled bool) {
+	af, aIsFloat := toFloat64(a)
+	bf, bIsFloat := toFloat64(b)
+	if aIsFloat && bIsFloat {
+		return af == bf, true
+	}
+	return false, false
+}
+
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
 }
 
 // contains checks if a string contains a substring.
 func contains(s, substr string) bool {
-	return len(substr) == 0 || (len(s) >= len(substr) && searchSubstring(s, substr))
+	return substr == "" || (len(s) >= len(substr) && searchSubstring(s, substr))
 }
 
 func searchSubstring(s, substr string) bool {

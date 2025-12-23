@@ -21,7 +21,7 @@ func NewValidator() *Validator {
 }
 
 // Validate validates an async message against the contract interaction.
-func (v *Validator) Validate(ctx context.Context, interaction contract.Interaction, actual validator.ActualData) validator.ValidationResult {
+func (v *Validator) Validate(ctx context.Context, interaction *contract.Interaction, actual validator.ActualData) validator.ValidationResult {
 	if interaction.Payload.Async == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no async payload",
@@ -38,8 +38,8 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 		interaction.MatchingRules,
 		common.DefaultAsyncHeaderConfig("$.message.headers"),
 	)
-	for _, err := range headerErrors {
-		result.AddError(err)
+	for i := range headerErrors {
+		result.AddError(&headerErrors[i])
 	}
 
 	// Validate message payload
@@ -47,7 +47,6 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 		payloadResult := v.validatePayload(
 			payload.Message.Payload,
 			actual.Response,
-			"$.message.payload",
 			interaction.MatchingRules,
 		)
 		result.Merge(payloadResult)
@@ -57,7 +56,7 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 }
 
 // ValidateMessage validates a captured message against expected schema.
-func (v *Validator) ValidateMessage(interaction contract.Interaction, message []byte, headers map[string]string) validator.ValidationResult {
+func (v *Validator) ValidateMessage(interaction *contract.Interaction, message []byte, headers map[string]string) validator.ValidationResult {
 	if interaction.Payload.Async == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no async payload",
@@ -74,8 +73,8 @@ func (v *Validator) ValidateMessage(interaction contract.Interaction, message []
 		interaction.MatchingRules,
 		common.DefaultAsyncHeaderConfig("$.message.headers"),
 	)
-	for _, err := range headerErrors {
-		result.AddError(err)
+	for i := range headerErrors {
+		result.AddError(&headerErrors[i])
 	}
 
 	// Validate payload
@@ -83,7 +82,6 @@ func (v *Validator) ValidateMessage(interaction contract.Interaction, message []
 		payloadResult := v.validatePayload(
 			expected.Payload,
 			message,
-			"$.message.payload",
 			interaction.MatchingRules,
 		)
 		result.Merge(payloadResult)
@@ -93,12 +91,13 @@ func (v *Validator) ValidateMessage(interaction contract.Interaction, message []
 }
 
 // validatePayload validates a message payload against expected schema.
-func (v *Validator) validatePayload(expected any, actualBytes []byte, basePath string, rules contract.MatchingRules) validator.ValidationResult {
+func (v *Validator) validatePayload(expected any, actualBytes []byte, rules contract.MatchingRules) validator.ValidationResult {
+	const basePath = "$.message.payload"
 	result := validator.NewSuccessResult()
 
 	var actual any
 	if err := json.Unmarshal(actualBytes, &actual); err != nil {
-		result.AddError(validator.ValidationError{
+		result.AddError(&validator.ValidationError{
 			Path:    basePath,
 			Message: fmt.Sprintf("failed to parse payload as JSON: %v", err),
 		})
@@ -110,7 +109,7 @@ func (v *Validator) validatePayload(expected any, actualBytes []byte, basePath s
 	for path, rule := range rules {
 		if len(path) >= len(basePath) && path[:len(basePath)] == basePath {
 			if err := engine.LoadRules(contract.MatchingRules{path: rule}); err != nil {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:    path,
 					Message: fmt.Sprintf("failed to compile matching rule: %v", err),
 				})
@@ -124,7 +123,7 @@ func (v *Validator) validatePayload(expected any, actualBytes []byte, basePath s
 	matchResult := engine.Match(wrapped)
 	if !matchResult.Success {
 		for _, err := range matchResult.Errors {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:     err.Path,
 				Expected: err.Expected,
 				Actual:   err.Actual,
@@ -146,7 +145,7 @@ func (v *Validator) validatePayload(expected any, actualBytes []byte, basePath s
 				}
 			}
 			if !hasError {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     basePath + err.Path[1:],
 					Expected: err.Expected,
 					Actual:   err.Actual,

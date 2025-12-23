@@ -71,11 +71,20 @@ func TestMockServer_HandleUnaryCall(t *testing.T) {
 	}
 
 	server := NewMockServer(interactions)
-	server.Start()
-	defer server.Stop()
+	if err := server.Start(); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+	defer func() {
+		if err := server.Stop(); err != nil {
+			t.Logf("Warning: failed to stop server: %v", err)
+		}
+	}()
 
 	t.Run("successful call", func(t *testing.T) {
-		request, _ := json.Marshal(map[string]any{"id": "123"})
+		request, err := json.Marshal(map[string]any{"id": "123"})
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
 		response, metadata, status, err := server.HandleUnaryCall(
 			context.Background(),
 			"users.UserService",
@@ -105,8 +114,11 @@ func TestMockServer_HandleUnaryCall(t *testing.T) {
 	})
 
 	t.Run("no matching interaction", func(t *testing.T) {
-		request, _ := json.Marshal(map[string]any{})
-		_, _, _, err := server.HandleUnaryCall(
+		request, err := json.Marshal(map[string]any{})
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+		_, _, _, err = server.HandleUnaryCall(
 			context.Background(),
 			"unknown.Service",
 			"Unknown",
@@ -144,7 +156,10 @@ func TestMockServer_HandleServerStreamCall(t *testing.T) {
 	server := NewMockServer(interactions)
 
 	t.Run("successful stream", func(t *testing.T) {
-		request, _ := json.Marshal(map[string]any{"user_id": "123"})
+		request, err := json.Marshal(map[string]any{"user_id": "123"})
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
 		handler, err := server.HandleServerStreamCall(
 			context.Background(),
 			"events.EventService",
@@ -174,8 +189,11 @@ func TestMockServer_HandleServerStreamCall(t *testing.T) {
 	})
 
 	t.Run("no matching interaction", func(t *testing.T) {
-		request, _ := json.Marshal(map[string]any{})
-		_, err := server.HandleServerStreamCall(
+		request, err := json.Marshal(map[string]any{})
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+		_, err = server.HandleServerStreamCall(
 			context.Background(),
 			"unknown.Service",
 			"Unknown",
@@ -225,8 +243,14 @@ func TestMockServer_HandleClientStreamCall(t *testing.T) {
 		}
 
 		// Send messages
-		msg1, _ := json.Marshal(map[string]any{"chunk": "data1"})
-		msg2, _ := json.Marshal(map[string]any{"chunk": "data2"})
+		msg1, err := json.Marshal(map[string]any{"chunk": "data1"})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg1: %v", err)
+		}
+		msg2, err := json.Marshal(map[string]any{"chunk": "data2"})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg2: %v", err)
+		}
 		handler.Send(msg1, nil)
 		handler.Send(msg2, nil)
 
@@ -286,7 +310,10 @@ func TestMockServer_HandleBidiStreamCall(t *testing.T) {
 		}
 
 		// Send client message
-		msg, _ := json.Marshal(map[string]any{"text": "hello"})
+		msg, err := json.Marshal(map[string]any{"text": "hello"})
+		if err != nil {
+			t.Fatalf("Failed to marshal msg: %v", err)
+		}
 		handler.Send(msg, nil)
 
 		// Receive server message
@@ -329,8 +356,13 @@ func TestMockServer_ReceivedCalls(t *testing.T) {
 	server := NewMockServer(interactions)
 
 	// Make a call
-	request, _ := json.Marshal(map[string]any{})
-	server.HandleUnaryCall(context.Background(), "test.Service", "Test", nil, request)
+	request, err := json.Marshal(map[string]any{})
+	if err != nil {
+		t.Fatalf("Failed to marshal request: %v", err)
+	}
+	if _, _, _, err := server.HandleUnaryCall(context.Background(), "test.Service", "Test", nil, request); err != nil {
+		t.Fatalf("HandleUnaryCall failed: %v", err)
+	}
 
 	calls := server.ReceivedCalls()
 	if len(calls) != 1 {
@@ -385,9 +417,16 @@ func TestMockServer_Verify(t *testing.T) {
 		server.Reset()
 
 		// Match both interactions
-		request, _ := json.Marshal(map[string]any{})
-		server.HandleUnaryCall(context.Background(), "test.Service", "Test1", nil, request)
-		server.HandleUnaryCall(context.Background(), "test.Service", "Test2", nil, request)
+		request, err := json.Marshal(map[string]any{})
+		if err != nil {
+			t.Fatalf("Failed to marshal request: %v", err)
+		}
+		if _, _, _, err := server.HandleUnaryCall(context.Background(), "test.Service", "Test1", nil, request); err != nil {
+			t.Fatalf("HandleUnaryCall Test1 failed: %v", err)
+		}
+		if _, _, _, err := server.HandleUnaryCall(context.Background(), "test.Service", "Test2", nil, request); err != nil {
+			t.Fatalf("HandleUnaryCall Test2 failed: %v", err)
+		}
 
 		result := server.Verify()
 		if !result.Success {
@@ -415,8 +454,13 @@ func TestMockServer_Reset(t *testing.T) {
 	server := NewMockServer(interactions)
 
 	// Make a call
-	request, _ := json.Marshal(map[string]any{})
-	server.HandleUnaryCall(context.Background(), "test.Service", "Test", nil, request)
+	request, err := json.Marshal(map[string]any{})
+	if err != nil {
+		t.Fatalf("Failed to marshal request: %v", err)
+	}
+	if _, _, _, err := server.HandleUnaryCall(context.Background(), "test.Service", "Test", nil, request); err != nil {
+		t.Fatalf("HandleUnaryCall failed: %v", err)
+	}
 
 	// Reset
 	server.Reset()

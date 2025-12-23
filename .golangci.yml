@@ -16,7 +16,7 @@ linters:
     - bodyclose
     - dogsled
     - dupl
-    - exportloopref
+    - copyloopvar
     - gochecknoinits
     - goconst
     - gocritic

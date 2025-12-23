@@ -1,18 +1,22 @@
 package commands
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/gabrielrauch/covenant/pkg/contract"
 )
+
+// publishResult represents the response from publishing a contract.
+type publishResult struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
+}
 
 // Publish publishes contracts to the broker.
 func Publish(ctx context.Context, args []string) error {
@@ -42,7 +46,7 @@ func Publish(ctx context.Context, args []string) error {
 		return fmt.Errorf("no contract files found in %s", *dir)
 	}
 
-	client := &http.Client{}
+	client := NewHTTPClient(*brokerURL)
 	published := 0
 
 	for _, file := range files {
@@ -52,62 +56,47 @@ func Publish(ctx context.Context, args []string) error {
 			continue
 		}
 
-		// Add tag if specified
-		if *tag != "" {
-			hasTag := false
-			for _, t := range c.Metadata.Tags {
-				if t == *tag {
-					hasTag = true
-					break
-				}
-			}
-			if !hasTag {
-				c.Metadata.Tags = append(c.Metadata.Tags, *tag)
-			}
-		}
+		ensureTagInContract(c, *tag)
 
-		// Publish to broker
-		data, err := json.Marshal(c)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to serialize %s: %v\n", file, err)
-			continue
-		}
-
-		req, err := http.NewRequestWithContext(ctx, "POST", *brokerURL+"/contracts", bytes.NewReader(data))
-		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := client.Do(req)
+		result, err := publishContract(ctx, client, c)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to publish %s: %v\n", file, err)
 			continue
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read response for %s: %v\n", file, err)
-			continue
-		}
-
-		if resp.StatusCode != http.StatusCreated {
-			fmt.Fprintf(os.Stderr, "Failed to publish %s: %s\n", file, string(body))
-			continue
-		}
-
-		var result struct {
-			ID      string `json:"id"`
-			Version string `json:"version"`
-		}
-		if err := json.Unmarshal(body, &result); err == nil {
-			fmt.Printf("Published %s: %s v%s\n", filepath.Base(file), result.ID, result.Version)
-		}
+		fmt.Printf("Published %s: %s v%s\n", filepath.Base(file), result.ID, result.Version)
 		published++
 	}
 
 	fmt.Printf("\nPublished %d/%d contracts to %s\n", published, len(files), *brokerURL)
 	return nil
+}
+
+// ensureTagInContract adds a tag to the contract if not already present.
+func ensureTagInContract(c *contract.Contract, tag string) {
+	if tag == "" {
+		return
+	}
+
+	for _, t := range c.Metadata.Tags {
+		if t == tag {
+			return
+		}
+	}
+	c.Metadata.Tags = append(c.Metadata.Tags, tag)
+}
+
+// publishContract sends a contract to the broker and returns the result.
+func publishContract(ctx context.Context, client *HTTPClient, c *contract.Contract) (*publishResult, error) {
+	respBody, err := client.PostJSON(ctx, "/contracts", c, http.StatusCreated)
+	if err != nil {
+		return nil, err
+	}
+
+	var result publishResult
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &result, nil
 }

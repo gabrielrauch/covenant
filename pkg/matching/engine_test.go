@@ -51,7 +51,7 @@ func TestEngine_Match_ExactRule(t *testing.T) {
 func TestEngine_Match_TypeRule(t *testing.T) {
 	engine := NewEngine()
 	err := engine.LoadRules(contract.MatchingRules{
-		"$.id": {Match: contract.MatchType_},
+		"$.id": {Match: contract.MatchTypeValue},
 	})
 	if err != nil {
 		t.Fatalf("LoadRules failed: %v", err)
@@ -369,7 +369,7 @@ func TestEngine_Match_NestedPath(t *testing.T) {
 func TestEngine_Match_ArrayWildcard(t *testing.T) {
 	engine := NewEngine()
 	err := engine.LoadRules(contract.MatchingRules{
-		"$.items[*].id": {Match: contract.MatchType_},
+		"$.items[*].id": {Match: contract.MatchTypeValue},
 	})
 	if err != nil {
 		t.Fatalf("LoadRules failed: %v", err)
@@ -534,7 +534,7 @@ func TestMatchStructure_NullActual(t *testing.T) {
 
 func TestMatchWithDefaults(t *testing.T) {
 	contractRules := contract.MatchingRules{
-		"$.response.id": {Match: contract.MatchType_},
+		"$.response.id": {Match: contract.MatchTypeValue},
 	}
 	interactionRules := contract.MatchingRules{
 		"$.response.status": {Match: contract.MatchExact, Value: "ok"},
@@ -556,7 +556,7 @@ func TestMatchWithDefaults(t *testing.T) {
 func TestEngine_MultipleRules(t *testing.T) {
 	engine := NewEngine()
 	err := engine.LoadRules(contract.MatchingRules{
-		"$.name":   {Match: contract.MatchType_},
+		"$.name":   {Match: contract.MatchTypeValue},
 		"$.email":  {Match: contract.MatchRegex, Pattern: `@`},
 		"$.age":    {Match: contract.MatchInteger},
 		"$.active": {Match: contract.MatchExact, Value: true},
@@ -566,10 +566,10 @@ func TestEngine_MultipleRules(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		data        any
-		success     bool
-		errorCount  int
+		name       string
+		data       any
+		success    bool
+		errorCount int
 	}{
 		{
 			name: "all rules pass",

@@ -25,9 +25,18 @@ func ParseVersion(s string) (Version, error) {
 		return Version{}, fmt.Errorf("invalid semver: %s", s)
 	}
 
-	major, _ := strconv.Atoi(matches[1])
-	minor, _ := strconv.Atoi(matches[2])
-	patch, _ := strconv.Atoi(matches[3])
+	major, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return Version{}, fmt.Errorf("invalid major version: %w", err)
+	}
+	minor, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return Version{}, fmt.Errorf("invalid minor version: %w", err)
+	}
+	patch, err := strconv.Atoi(matches[3])
+	if err != nil {
+		return Version{}, fmt.Errorf("invalid patch version: %w", err)
+	}
 
 	return Version{
 		Major:      major,
@@ -189,7 +198,7 @@ func parseConstraint(s string) (constraint, error) {
 	// Check for operators
 	ops := []string{">=", "<=", ">", "<", "=", "^", "~"}
 	for _, op := range ops {
-		if after, ok :=strings.CutPrefix(s, op); ok  {
+		if after, ok := strings.CutPrefix(s, op); ok {
 			verStr := after
 			v, err := ParseVersion(verStr)
 			if err != nil {
@@ -234,20 +243,30 @@ func (c constraint) matches(v Version) bool {
 	case "<=":
 		return v.LessThan(c.version) || v.Equal(c.version)
 	case "^":
-		// Caret allows changes that don't modify the leftmost non-zero digit
-		if c.version.Major != 0 {
-			return v.Major == c.version.Major && !v.LessThan(c.version)
-		}
-		if c.version.Minor != 0 {
-			return v.Major == c.version.Major && v.Minor == c.version.Minor && !v.LessThan(c.version)
-		}
-		return v.Equal(c.version)
+		return c.matchesCaret(v)
 	case "~":
-		// Tilde allows patch-level changes
-		return v.Major == c.version.Major && v.Minor == c.version.Minor && !v.LessThan(c.version)
+		return c.matchesTilde(v)
 	default:
 		return false
 	}
+}
+
+// matchesCaret checks caret version matching.
+// Caret allows changes that don't modify the leftmost non-zero digit.
+func (c constraint) matchesCaret(v Version) bool {
+	if c.version.Major != 0 {
+		return v.Major == c.version.Major && !v.LessThan(c.version)
+	}
+	if c.version.Minor != 0 {
+		return v.Major == c.version.Major && v.Minor == c.version.Minor && !v.LessThan(c.version)
+	}
+	return v.Equal(c.version)
+}
+
+// matchesTilde checks tilde version matching.
+// Tilde allows patch-level changes.
+func (c constraint) matchesTilde(v Version) bool {
+	return v.Major == c.version.Major && v.Minor == c.version.Minor && !v.LessThan(c.version)
 }
 
 // String returns the string representation of the range.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gabrielrauch/covenant/pkg/broker/api"
 	"github.com/gabrielrauch/covenant/pkg/broker/storage"
@@ -71,8 +72,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // handleHealth returns a simple health check response.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	s.jsonResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // handlePublishContract handles contract publishing.
@@ -89,9 +89,7 @@ func (s *Server) handlePublishContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(result)
+	s.jsonResponse(w, http.StatusCreated, result)
 }
 
 // handleListContracts lists contracts with optional filters.
@@ -107,14 +105,13 @@ func (s *Server) handleListContracts(w http.ResponseWriter, r *http.Request) {
 		filter.Status = contract.Status(status)
 	}
 
-	contracts, err := s.contracts.List(r.Context(), filter)
+	contracts, err := s.contracts.List(r.Context(), &filter)
 	if err != nil {
 		s.errorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(contracts)
+	s.jsonResponse(w, http.StatusOK, contracts)
 }
 
 // handleGetContract retrieves a contract by ID.
@@ -135,8 +132,7 @@ func (s *Server) handleGetContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(c)
+	s.jsonResponse(w, http.StatusOK, c)
 }
 
 // handleTagContract adds tags to a contract.
@@ -243,8 +239,7 @@ func (s *Server) handleListVerifications(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	s.jsonResponse(w, http.StatusOK, results)
 }
 
 // handleGetVerification retrieves a specific verification result.
@@ -267,8 +262,7 @@ func (s *Server) handleGetVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	s.jsonResponse(w, http.StatusOK, result)
 }
 
 // handleCanDeploy checks if a service can be deployed.
@@ -288,8 +282,7 @@ func (s *Server) handleCanDeploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	s.jsonResponse(w, http.StatusOK, result)
 }
 
 // handleMatrix returns the compatibility matrix.
@@ -303,15 +296,22 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.jsonResponse(w, http.StatusOK, matrix)
+}
+
+// jsonResponse sends a JSON response with the given status code.
+func (s *Server) jsonResponse(w http.ResponseWriter, code int, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(matrix)
+	w.WriteHeader(code)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		// Log error but can't do much since headers are already sent
+		fmt.Printf("failed to encode JSON response: %v\n", err)
+	}
 }
 
 // errorResponse sends an error response.
 func (s *Server) errorResponse(w http.ResponseWriter, code int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(map[string]string{"error": message})
+	s.jsonResponse(w, code, map[string]string{"error": message})
 }
 
 // Config holds server configuration.
@@ -330,14 +330,22 @@ func Run(ctx context.Context, cfg Config) error {
 	server := NewServer(backend)
 
 	httpServer := &http.Server{
-		Addr:    cfg.Addr,
-		Handler: server,
+		Addr:              cfg.Addr,
+		Handler:           server,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Handle graceful shutdown
 	go func() {
 		<-ctx.Done()
-		httpServer.Shutdown(context.Background())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			fmt.Printf("failed to shutdown server: %v\n", err)
+		}
 	}()
 
 	fmt.Printf("Broker server listening on %s\n", cfg.Addr)

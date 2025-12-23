@@ -442,8 +442,14 @@ func TestComputeChecksum_DifferentOrder(t *testing.T) {
 		},
 	}
 
-	checksum1, _ := ComputeChecksum(interactions1)
-	checksum2, _ := ComputeChecksum(interactions2)
+	checksum1, err := ComputeChecksum(interactions1)
+	if err != nil {
+		t.Fatalf("ComputeChecksum failed: %v", err)
+	}
+	checksum2, err := ComputeChecksum(interactions2)
+	if err != nil {
+		t.Fatalf("ComputeChecksum failed: %v", err)
+	}
 
 	if checksum1 != checksum2 {
 		t.Error("same data should produce same checksum regardless of creation order")
@@ -475,7 +481,7 @@ func TestVerifyChecksum(t *testing.T) {
 	}
 
 	// Update checksum
-	if err := UpdateChecksum(c); err != nil {
+	if err = UpdateChecksum(c); err != nil {
 		t.Fatalf("failed to update checksum: %v", err)
 	}
 
@@ -660,7 +666,7 @@ func TestContractWithMatchingRules(t *testing.T) {
 					},
 				},
 				MatchingRules: MatchingRules{
-					"$.response.body.id": {Match: MatchType_},
+					"$.response.body.id": {Match: MatchTypeValue},
 				},
 			},
 		},
@@ -684,7 +690,7 @@ func TestContractWithMatchingRules(t *testing.T) {
 	if len(loaded.Interactions[0].MatchingRules) != 1 {
 		t.Error("matching rules should be preserved")
 	}
-	if loaded.Interactions[0].MatchingRules["$.response.body.id"].Match != MatchType_ {
+	if loaded.Interactions[0].MatchingRules["$.response.body.id"].Match != MatchTypeValue {
 		t.Error("matching rule type should be preserved")
 	}
 }

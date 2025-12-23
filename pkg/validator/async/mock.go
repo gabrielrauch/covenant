@@ -54,7 +54,10 @@ func (m *MockSource) GetMessage(destination string) (*DeliveredMessage, error) {
 		}
 
 		// Build message
-		payload, _ := json.Marshal(async.Message.Payload)
+		payload, err := json.Marshal(async.Message.Payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal message payload: %w", err)
+		}
 		msg := &DeliveredMessage{
 			Destination: destination,
 			Headers:     async.Message.Headers,
@@ -75,7 +78,7 @@ func (m *MockSource) GetMessage(destination string) (*DeliveredMessage, error) {
 
 // GetMessages returns all mock messages for a destination.
 func (m *MockSource) GetMessages(destination string) []DeliveredMessage {
-	var messages []DeliveredMessage
+	messages := make([]DeliveredMessage, 0, len(m.interactions))
 
 	for _, interaction := range m.interactions {
 		if interaction.Payload.Async == nil {
@@ -87,7 +90,10 @@ func (m *MockSource) GetMessages(destination string) []DeliveredMessage {
 			continue
 		}
 
-		payload, _ := json.Marshal(async.Message.Payload)
+		payload, err := json.Marshal(async.Message.Payload)
+		if err != nil {
+			continue // Skip messages that can't be marshaled
+		}
 		messages = append(messages, DeliveredMessage{
 			Destination: destination,
 			Headers:     async.Message.Headers,
@@ -116,7 +122,7 @@ func (m *MockSource) Verify() validator.ValidationResult {
 
 		count := m.matchedDelivery[interaction.ID]
 		if count == 0 {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    interaction.ID,
 				Message: fmt.Sprintf("message %q was never delivered", interaction.Description),
 			})

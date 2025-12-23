@@ -71,7 +71,7 @@ func TestValidateHeaders_WithMatchingRule(t *testing.T) {
 		"X-Request-ID": "different-id",
 	}
 	rules := contract.MatchingRules{
-		"$.response.headers.X-Request-ID": {Match: contract.MatchType_},
+		"$.response.headers.X-Request-ID": {Match: contract.MatchTypeValue},
 	}
 
 	errors := ValidateHeaders(expected, actual, rules, DefaultHTTPHeaderConfig("$.response.headers"))

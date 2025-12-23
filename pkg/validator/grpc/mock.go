@@ -74,7 +74,7 @@ func (s *MockServer) Address() string {
 }
 
 // HandleUnaryCall handles a unary gRPC call (for testing without a real gRPC server).
-func (s *MockServer) HandleUnaryCall(ctx context.Context, service, method string, metadata map[string]string, request []byte) ([]byte, map[string]string, string, error) {
+func (s *MockServer) HandleUnaryCall(ctx context.Context, service, method string, metadata map[string]string, request []byte) (response []byte, respMetadata map[string]string, status string, err error) {
 	recorded := RecordedCall{
 		Service:  service,
 		Method:   method,
@@ -86,24 +86,24 @@ func (s *MockServer) HandleUnaryCall(ctx context.Context, service, method string
 	interaction, err := s.findMatchingInteraction(service, method, contract.StreamTypeUnary)
 	if err != nil {
 		recorded.Error = err.Error()
-		s.recordCall(recorded)
+		s.recordCall(&recorded)
 		return nil, nil, "", err
 	}
 
 	// Validate request
-	result := s.validator.ValidateRequest(*interaction, request, metadata)
+	result := s.validator.ValidateRequest(interaction, request, metadata)
 	if !result.Success {
 		recorded.Error = fmt.Sprintf("request validation failed: %v", formatErrors(result.Errors))
-		s.recordCall(recorded)
+		s.recordCall(&recorded)
 		return nil, nil, "", fmt.Errorf("%s", recorded.Error)
 	}
 
 	recorded.Matched = true
-	s.recordCall(recorded)
+	s.recordCall(&recorded)
 	s.incrementMatchCount(interaction.ID)
 
 	// Build response
-	response, respMetadata, status := s.buildResponse(interaction)
+	response, respMetadata, status = s.buildResponse(interaction)
 	return response, respMetadata, status, nil
 }
 
@@ -122,7 +122,7 @@ func (s *MockServer) HandleServerStreamCall(ctx context.Context, service, method
 	}
 
 	// Validate request
-	result := s.validator.ValidateRequest(*interaction, request, metadata)
+	result := s.validator.ValidateRequest(interaction, request, metadata)
 	if !result.Success {
 		return nil, fmt.Errorf("request validation failed: %v", formatErrors(result.Errors))
 	}
@@ -167,7 +167,7 @@ func (s *MockServer) HandleClientStreamCall(ctx context.Context, service, method
 	return &ClientStreamHandler{
 		interaction: interaction,
 		mock:        s,
-		validator:   NewStreamValidator(*interaction),
+		validator:   NewStreamValidator(interaction),
 	}, nil
 }
 
@@ -178,7 +178,7 @@ func (h *ClientStreamHandler) Send(message []byte, metadata map[string]string) {
 }
 
 // CloseAndRecv closes the client stream and receives the response.
-func (h *ClientStreamHandler) CloseAndRecv() ([]byte, map[string]string, string, error) {
+func (h *ClientStreamHandler) CloseAndRecv() (response []byte, metadata map[string]string, status string, err error) {
 	result := h.validator.Result()
 	if !result.Success {
 		return nil, nil, "", fmt.Errorf("stream validation failed: %v", formatErrors(result.Errors))
@@ -207,7 +207,7 @@ func (s *MockServer) HandleBidiStreamCall(ctx context.Context, service, method s
 	return &BidiStreamHandler{
 		interaction: interaction,
 		mock:        s,
-		validator:   NewStreamValidator(*interaction),
+		validator:   NewStreamValidator(interaction),
 	}, nil
 }
 
@@ -232,7 +232,10 @@ func (h *BidiStreamHandler) Recv() ([]byte, bool) {
 		msg := seq[h.seqIndex]
 		h.seqIndex++
 		if msg.Direction == contract.StreamDirectionServer {
-			response, _ := json.Marshal(msg.Message)
+			response, err := json.Marshal(msg.Message)
+			if err != nil {
+				return nil, false
+			}
 			// Notify validator that server message was sent (keeps indices in sync)
 			h.validator.ValidateServerMessage(response, nil)
 			return response, true
@@ -270,7 +273,7 @@ func (s *MockServer) findMatchingInteraction(service, method string, streamType 
 }
 
 // buildResponse builds the response from the interaction.
-func (s *MockServer) buildResponse(interaction *contract.Interaction) ([]byte, map[string]string, string) {
+func (s *MockServer) buildResponse(interaction *contract.Interaction) (response []byte, metadata map[string]string, status string) {
 	if interaction.Payload.GRPC == nil {
 		return nil, nil, ""
 	}
@@ -280,17 +283,21 @@ func (s *MockServer) buildResponse(interaction *contract.Interaction) ([]byte, m
 	// Serialize response message
 	var responseBytes []byte
 	if resp.Message != nil {
-		responseBytes, _ = json.Marshal(resp.Message)
+		var err error
+		responseBytes, err = json.Marshal(resp.Message)
+		if err != nil {
+			return nil, nil, ""
+		}
 	}
 
 	return responseBytes, resp.Metadata, resp.Status
 }
 
 // recordCall records a call for later analysis.
-func (s *MockServer) recordCall(call RecordedCall) {
+func (s *MockServer) recordCall(call *RecordedCall) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.receivedRequests = append(s.receivedRequests, call)
+	s.receivedRequests = append(s.receivedRequests, *call)
 }
 
 // incrementMatchCount increments the match counter.
@@ -323,7 +330,7 @@ func (s *MockServer) Verify() validator.ValidationResult {
 
 		count := s.matchedCalls[interaction.ID]
 		if count == 0 {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    interaction.ID,
 				Message: fmt.Sprintf("interaction %q was never matched", interaction.Description),
 			})

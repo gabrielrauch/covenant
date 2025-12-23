@@ -142,7 +142,7 @@ func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpc
 		Response: responseBytes,
 	}
 
-	result := v.Validate(nil, interaction, actual)
+	result := v.Validate(nil, &interaction, actual)
 
 	if !result.Success {
 		for _, err := range result.Errors {
@@ -169,7 +169,7 @@ func TestProviderRequestValidation(t *testing.T) {
 	validMetadata := map[string]string{"authorization": "Bearer token123"}
 
 	// Validate the request
-	result := v.ValidateRequest(interaction, validRequestBytes, validMetadata)
+	result := v.ValidateRequest(&interaction, validRequestBytes, validMetadata)
 
 	if !result.Success {
 		t.Errorf("Valid request should pass validation: %v", result.Errors)
@@ -177,7 +177,7 @@ func TestProviderRequestValidation(t *testing.T) {
 
 	// Test with invalid request (missing authorization)
 	invalidMetadata := map[string]string{}
-	result = v.ValidateRequest(interaction, validRequestBytes, invalidMetadata)
+	result = v.ValidateRequest(&interaction, validRequestBytes, invalidMetadata)
 
 	// This should fail because authorization header is required
 	if result.Success {
@@ -222,7 +222,7 @@ func TestStreamValidation(t *testing.T) {
 	interaction := c.Interactions[0]
 
 	// Create stream validator
-	sv := grpcvalidator.NewStreamValidator(interaction)
+	sv := grpcvalidator.NewStreamValidator(&interaction)
 
 	// Simulate receiving client messages
 	msg1, _ := json.Marshal(map[string]any{"value": 10})

@@ -69,7 +69,7 @@ func TestContract_WithTags(t *testing.T) {
 
 func TestContract_WithMatchingRule(t *testing.T) {
 	c := NewContract("consumer", "provider").
-		WithMatchingRule("$.body.id", contract.MatchingRule{Match: contract.MatchType_}).
+		WithMatchingRule("$.body.id", contract.MatchingRule{Match: contract.MatchTypeValue}).
 		Build()
 
 	if len(c.MatchingRules) != 1 {
@@ -79,7 +79,7 @@ func TestContract_WithMatchingRule(t *testing.T) {
 	if !ok {
 		t.Fatal("Expected matching rule for $.body.id")
 	}
-	if rule.Match != contract.MatchType_ {
+	if rule.Match != contract.MatchTypeValue {
 		t.Errorf("Rule match = %s, want type", rule.Match)
 	}
 }
@@ -247,7 +247,7 @@ func TestMatchingRuleHelpers(t *testing.T) {
 		rule     contract.MatchingRule
 		wantType contract.MatchType
 	}{
-		{"TypeMatcher", TypeMatcher(), contract.MatchType_},
+		{"TypeMatcher", TypeMatcher(), contract.MatchTypeValue},
 		{"IntegerMatcher", IntegerMatcher(), contract.MatchInteger},
 		{"DecimalMatcher", DecimalMatcher(), contract.MatchDecimal},
 		{"OptionalMatcher", OptionalMatcher(), contract.MatchOptional},

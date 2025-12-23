@@ -73,20 +73,20 @@ func (s *ContractService) Publish(ctx context.Context, c *contract.Contract) (*P
 	}
 
 	// Check if a contract with this ID already exists
-	existingData, err := s.storage.Load(ctx, s.keys.ContractByID(c.Metadata.ID))
-	if err == nil {
+	existingData, loadErr := s.storage.Load(ctx, s.keys.ContractByID(c.Metadata.ID))
+	if loadErr == nil {
 		// Contract exists, check if it can be updated
 		var existing contract.Contract
-		if err := json.Unmarshal(existingData, &existing); err != nil {
-			return nil, fmt.Errorf("failed to parse existing contract: %w", err)
+		if unmarshalErr := json.Unmarshal(existingData, &existing); unmarshalErr != nil {
+			return nil, fmt.Errorf("failed to parse existing contract: %w", unmarshalErr)
 		}
 
 		// Only drafts can be updated
 		if existing.Metadata.Status != contract.StatusDraft {
 			return nil, fmt.Errorf("cannot update non-draft contract (status: %s)", existing.Metadata.Status)
 		}
-	} else if err != storage.ErrNotFound {
-		return nil, fmt.Errorf("failed to check existing contract: %w", err)
+	} else if loadErr != storage.ErrNotFound {
+		return nil, fmt.Errorf("failed to check existing contract: %w", loadErr)
 	}
 
 	// Serialize contract
@@ -108,14 +108,14 @@ func (s *ContractService) Publish(ctx context.Context, c *contract.Contract) (*P
 		ops = append(ops, storage.Operation{Type: storage.OpSave, Key: tagKey, Data: data})
 	}
 
-	if err := s.storage.Transaction(ctx, ops); err != nil {
-		return nil, fmt.Errorf("failed to store contract: %w", err)
+	if txErr := s.storage.Transaction(ctx, ops); txErr != nil {
+		return nil, fmt.Errorf("failed to store contract: %w", txErr)
 	}
 
 	return &PublishResult{
 		ID:       c.Metadata.ID,
 		Version:  c.Metadata.Version,
-		IsNew:    err == storage.ErrNotFound,
+		IsNew:    loadErr == storage.ErrNotFound,
 		Checksum: c.Metadata.Checksum,
 	}, nil
 }
@@ -138,74 +138,85 @@ func (s *ContractService) GetByID(ctx context.Context, id string) (*contract.Con
 }
 
 // List returns contracts matching the filter.
-func (s *ContractService) List(ctx context.Context, filter ContractFilter) ([]ContractSummary, error) {
-	var prefix string
-
-	if filter.Tag != "" {
-		prefix = s.keys.TaggedContracts(filter.Tag)
-	} else if filter.Consumer != "" && filter.Provider != "" {
-		prefix = s.keys.Contract(filter.Consumer, filter.Provider, "")
-	} else if filter.Consumer != "" {
-		prefix = s.keys.AllContracts() + filter.Consumer + "/"
-	} else if filter.Provider != "" {
-		// Need to scan all consumers
-		prefix = s.keys.AllContracts()
-	} else {
-		prefix = s.keys.AllContracts()
-	}
+func (s *ContractService) List(ctx context.Context, filter *ContractFilter) ([]ContractSummary, error) {
+	prefix := s.resolveListPrefix(filter)
 
 	keys, err := s.storage.List(ctx, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list contracts: %w", err)
 	}
 
-	var summaries []ContractSummary
+	summaries := make([]ContractSummary, 0, len(keys))
 	seen := make(map[string]bool)
 
 	for _, key := range keys {
-		// Skip non-JSON files
 		if !strings.HasSuffix(key, ".json") {
 			continue
 		}
 
 		c, err := s.loadContract(ctx, key)
 		if err != nil {
-			continue // Skip invalid contracts
+			continue
 		}
 
-		// Skip duplicates (same contract may appear in multiple indexes)
 		if seen[c.Metadata.ID] {
 			continue
 		}
 		seen[c.Metadata.ID] = true
 
-		// Apply filters
-		if filter.Consumer != "" && c.Metadata.Consumer.Name != filter.Consumer {
-			continue
-		}
-		if filter.Provider != "" && c.Metadata.Provider.Name != filter.Provider {
-			continue
-		}
-		if filter.Status != "" && c.Metadata.Status != filter.Status {
-			continue
-		}
-		if filter.Version != "" && c.Metadata.Version != filter.Version {
+		if !s.matchesFilter(c, filter) {
 			continue
 		}
 
-		summaries = append(summaries, ContractSummary{
-			ID:           c.Metadata.ID,
-			Version:      c.Metadata.Version,
-			Consumer:     c.Metadata.Consumer.Name,
-			Provider:     c.Metadata.Provider.Name,
-			Status:       c.Metadata.Status,
-			Tags:         c.Metadata.Tags,
-			CreatedAt:    c.Metadata.CreatedAt,
-			Interactions: len(c.Interactions),
-		})
+		summaries = append(summaries, s.buildContractSummary(c))
 	}
 
 	return summaries, nil
+}
+
+// resolveListPrefix determines the storage prefix for listing contracts.
+func (s *ContractService) resolveListPrefix(filter *ContractFilter) string {
+	if filter.Tag != "" {
+		return s.keys.TaggedContracts(filter.Tag)
+	}
+	if filter.Consumer != "" && filter.Provider != "" {
+		return s.keys.Contract(filter.Consumer, filter.Provider, "")
+	}
+	if filter.Consumer != "" {
+		return s.keys.AllContracts() + filter.Consumer + "/"
+	}
+	return s.keys.AllContracts()
+}
+
+// matchesFilter checks if a contract matches the given filter.
+func (s *ContractService) matchesFilter(c *contract.Contract, filter *ContractFilter) bool {
+	if filter.Consumer != "" && c.Metadata.Consumer.Name != filter.Consumer {
+		return false
+	}
+	if filter.Provider != "" && c.Metadata.Provider.Name != filter.Provider {
+		return false
+	}
+	if filter.Status != "" && c.Metadata.Status != filter.Status {
+		return false
+	}
+	if filter.Version != "" && c.Metadata.Version != filter.Version {
+		return false
+	}
+	return true
+}
+
+// buildContractSummary creates a ContractSummary from a contract.
+func (s *ContractService) buildContractSummary(c *contract.Contract) ContractSummary {
+	return ContractSummary{
+		ID:           c.Metadata.ID,
+		Version:      c.Metadata.Version,
+		Consumer:     c.Metadata.Consumer.Name,
+		Provider:     c.Metadata.Provider.Name,
+		Status:       c.Metadata.Status,
+		Tags:         c.Metadata.Tags,
+		CreatedAt:    c.Metadata.CreatedAt,
+		Interactions: len(c.Interactions),
+	}
 }
 
 // Tag adds tags to a contract.

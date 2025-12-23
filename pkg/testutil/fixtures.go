@@ -11,12 +11,12 @@ import (
 func NewTestContract(consumer, provider string) *contract.Contract {
 	return &contract.Contract{
 		Metadata: contract.Metadata{
-			ID:       "test-contract-id",
-			Version:  "1.0.0",
-			Consumer: contract.Participant{Name: consumer, Version: "1.0.0"},
-			Provider: contract.Participant{Name: provider, Version: "1.0.0"},
-			Status:   contract.StatusDraft,
-			Tags:     []string{"test"},
+			ID:        "test-contract-id",
+			Version:   "1.0.0",
+			Consumer:  contract.Participant{Name: consumer, Version: "1.0.0"},
+			Provider:  contract.Participant{Name: provider, Version: "1.0.0"},
+			Status:    contract.StatusDraft,
+			Tags:      []string{"test"},
 			CreatedAt: time.Now(),
 		},
 		Interactions: []contract.Interaction{},
@@ -109,7 +109,7 @@ func NewAsyncInteraction(description, destination string, direction contract.Asy
 }
 
 // WithProviderState adds a provider state to an interaction.
-func WithProviderState(interaction contract.Interaction, name string, params map[string]any) contract.Interaction {
+func WithProviderState(interaction *contract.Interaction, name string, params map[string]any) *contract.Interaction {
 	interaction.ProviderStates = append(interaction.ProviderStates, contract.ProviderState{
 		Name:   name,
 		Params: params,
@@ -118,7 +118,7 @@ func WithProviderState(interaction contract.Interaction, name string, params map
 }
 
 // WithMatchingRules adds matching rules to an interaction.
-func WithMatchingRules(interaction contract.Interaction, rules contract.MatchingRules) contract.Interaction {
+func WithMatchingRules(interaction *contract.Interaction, rules contract.MatchingRules) *contract.Interaction {
 	interaction.MatchingRules = rules
 	return interaction
 }

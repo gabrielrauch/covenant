@@ -41,9 +41,9 @@ type ProviderState struct {
 
 // Contract is the unified contract envelope containing metadata and interactions.
 type Contract struct {
-	Metadata      Metadata       `json:"metadata"`
-	Interactions  []Interaction  `json:"interactions"`
-	MatchingRules MatchingRules  `json:"matching_rules,omitempty"`
+	Metadata      Metadata      `json:"metadata"`
+	Interactions  []Interaction `json:"interactions"`
+	MatchingRules MatchingRules `json:"matching_rules,omitempty"`
 }
 
 // Metadata contains contract identification and lifecycle information.
@@ -100,12 +100,12 @@ type HTTPResponse struct {
 
 // GRPCPayload represents a gRPC service interaction.
 type GRPCPayload struct {
-	Service    string           `json:"service"`
-	Method     string           `json:"method"`
-	Request    GRPCMessage      `json:"request"`
-	Response   GRPCResponse     `json:"response"`
-	StreamType StreamType       `json:"stream_type"`
-	Sequence   []StreamMessage  `json:"sequence,omitempty"`
+	Service    string          `json:"service"`
+	Method     string          `json:"method"`
+	Request    GRPCMessage     `json:"request"`
+	Response   GRPCResponse    `json:"response"`
+	StreamType StreamType      `json:"stream_type"`
+	Sequence   []StreamMessage `json:"sequence,omitempty"`
 }
 
 // GRPCMessage represents a gRPC request message.
@@ -147,7 +147,7 @@ const (
 
 // AsyncPayload represents an async messaging interaction.
 type AsyncPayload struct {
-	Destination string        `json:"destination"`
+	Destination string         `json:"destination"`
 	Direction   AsyncDirection `json:"direction"`
 	Message     AsyncMessage   `json:"message"`
 	Sequence    *AsyncSequence `json:"sequence,omitempty"`
@@ -170,9 +170,9 @@ type AsyncMessage struct {
 
 // AsyncSequence represents an ordered sequence of async messages for saga validation.
 type AsyncSequence struct {
-	Name       string              `json:"name"`
-	Messages   []AsyncSeqMessage   `json:"messages"`
-	Validation []string            `json:"validation,omitempty"`
+	Name       string            `json:"name"`
+	Messages   []AsyncSeqMessage `json:"messages"`
+	Validation []string          `json:"validation,omitempty"`
 }
 
 // AsyncSeqMessage represents a message in an async sequence.
@@ -188,11 +188,11 @@ type MatchingRules map[string]MatchingRule
 
 // MatchingRule defines how values should be compared during verification.
 type MatchingRule struct {
-	Match   MatchType `json:"match"`
-	Pattern string    `json:"pattern,omitempty"`
-	Value   any       `json:"value,omitempty"`
-	Min     *int      `json:"min,omitempty"`
-	Max     *int      `json:"max,omitempty"`
+	Match   MatchType     `json:"match"`
+	Pattern string        `json:"pattern,omitempty"`
+	Value   any           `json:"value,omitempty"`
+	Min     *int          `json:"min,omitempty"`
+	Max     *int          `json:"max,omitempty"`
 	Rule    *MatchingRule `json:"rule,omitempty"` // For null_or
 }
 
@@ -200,15 +200,15 @@ type MatchingRule struct {
 type MatchType string
 
 const (
-	MatchExact    MatchType = "exact"
-	MatchType_    MatchType = "type"
-	MatchRegex    MatchType = "regex"
-	MatchInteger  MatchType = "integer"
-	MatchDecimal  MatchType = "decimal"
-	MatchInclude  MatchType = "include"
-	MatchEachLike MatchType = "each_like"
-	MatchOptional MatchType = "optional"
-	MatchNullOr   MatchType = "null_or"
+	MatchExact     MatchType = "exact"
+	MatchTypeValue MatchType = "type"
+	MatchRegex     MatchType = "regex"
+	MatchInteger   MatchType = "integer"
+	MatchDecimal   MatchType = "decimal"
+	MatchInclude   MatchType = "include"
+	MatchEachLike  MatchType = "each_like"
+	MatchOptional  MatchType = "optional"
+	MatchNullOr    MatchType = "null_or"
 )
 
 // MarshalJSON implements custom JSON marshaling for Payload.

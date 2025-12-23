@@ -21,7 +21,7 @@ func NewValidator() *Validator {
 }
 
 // Validate validates a gRPC interaction against actual data.
-func (v *Validator) Validate(ctx context.Context, interaction contract.Interaction, actual validator.ActualData) validator.ValidationResult {
+func (v *Validator) Validate(ctx context.Context, interaction *contract.Interaction, actual validator.ActualData) validator.ValidationResult {
 	if interaction.Payload.GRPC == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no gRPC payload",
@@ -35,7 +35,7 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 	if actual.Status != nil {
 		if statusStr, ok := actual.Status.(string); ok {
 			if statusStr != payload.Response.Status {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     "$.response.status",
 					Expected: payload.Response.Status,
 					Actual:   statusStr,
@@ -52,8 +52,8 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 		interaction.MatchingRules,
 		common.DefaultGRPCMetadataConfig("$.response.metadata"),
 	)
-	for _, err := range metadataErrors {
-		result.AddError(err)
+	for i := range metadataErrors {
+		result.AddError(&metadataErrors[i])
 	}
 
 	// Validate response message
@@ -71,7 +71,7 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 }
 
 // ValidateRequest validates a gRPC request against the contract.
-func (v *Validator) ValidateRequest(interaction contract.Interaction, message []byte, metadata map[string]string) validator.ValidationResult {
+func (v *Validator) ValidateRequest(interaction *contract.Interaction, message []byte, metadata map[string]string) validator.ValidationResult {
 	if interaction.Payload.GRPC == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no gRPC payload",
@@ -88,8 +88,8 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, message []
 		interaction.MatchingRules,
 		common.DefaultGRPCMetadataConfig("$.request.metadata"),
 	)
-	for _, err := range metadataErrors {
-		result.AddError(err)
+	for i := range metadataErrors {
+		result.AddError(&metadataErrors[i])
 	}
 
 	// Validate message
@@ -113,7 +113,7 @@ func (v *Validator) validateMessage(expected any, actualBytes []byte, basePath s
 	// Parse actual message (assuming JSON encoding for simplicity)
 	var actual any
 	if err := json.Unmarshal(actualBytes, &actual); err != nil {
-		result.AddError(validator.ValidationError{
+		result.AddError(&validator.ValidationError{
 			Path:    basePath,
 			Message: fmt.Sprintf("failed to parse message as JSON: %v", err),
 		})
@@ -125,7 +125,7 @@ func (v *Validator) validateMessage(expected any, actualBytes []byte, basePath s
 	for path, rule := range rules {
 		if len(path) >= len(basePath) && path[:len(basePath)] == basePath {
 			if err := engine.LoadRules(contract.MatchingRules{path: rule}); err != nil {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:    path,
 					Message: fmt.Sprintf("failed to compile matching rule: %v", err),
 				})
@@ -145,7 +145,7 @@ func (v *Validator) validateMessage(expected any, actualBytes []byte, basePath s
 	matchResult := engine.Match(wrapped)
 	if !matchResult.Success {
 		for _, err := range matchResult.Errors {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:     err.Path,
 				Expected: err.Expected,
 				Actual:   err.Actual,
@@ -168,7 +168,7 @@ func (v *Validator) validateMessage(expected any, actualBytes []byte, basePath s
 				}
 			}
 			if !hasError {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     basePath + err.Path[1:],
 					Expected: err.Expected,
 					Actual:   err.Actual,
@@ -183,14 +183,14 @@ func (v *Validator) validateMessage(expected any, actualBytes []byte, basePath s
 
 // StreamValidator validates streaming gRPC interactions.
 type StreamValidator struct {
-	interaction contract.Interaction
+	interaction *contract.Interaction
 	validator   *Validator
 	seqIndex    int
 	errors      []validator.ValidationError
 }
 
 // NewStreamValidator creates a new stream validator for the interaction.
-func NewStreamValidator(interaction contract.Interaction) *StreamValidator {
+func NewStreamValidator(interaction *contract.Interaction) *StreamValidator {
 	return &StreamValidator{
 		interaction: interaction,
 		validator:   NewValidator(),

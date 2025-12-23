@@ -45,7 +45,7 @@ func (fs *FilesystemBackend) Save(ctx context.Context, key string, data []byte) 
 
 	// Write to temp file first for atomicity
 	tempPath := path + ".tmp"
-	if err := os.WriteFile(tempPath, data, 0644); err != nil {
+	if err := os.WriteFile(tempPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -92,7 +92,7 @@ func (fs *FilesystemBackend) List(ctx context.Context, prefix string) ([]string,
 	var keys []string
 
 	// Check if basePath exists
-	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+	if _, statErr := os.Stat(basePath); os.IsNotExist(statErr) {
 		return keys, nil
 	}
 
@@ -166,72 +166,115 @@ func (fs *FilesystemBackend) Exists(ctx context.Context, key string) (bool, erro
 	return true, nil
 }
 
+// pendingSave represents a file to be committed during transaction.
+type pendingSave struct {
+	tempPath  string
+	finalPath string
+}
+
 // Transaction executes multiple operations atomically.
 func (fs *FilesystemBackend) Transaction(ctx context.Context, ops []Operation) error {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 
-	// Validate all keys first before making any changes
+	if err := fs.validateTransactionKeys(ops); err != nil {
+		return err
+	}
+
+	pendingSaves, err := fs.prepareSaveOperations(ops)
+	if err != nil {
+		return err
+	}
+
+	if err := fs.commitSaveOperations(pendingSaves); err != nil {
+		return err
+	}
+
+	return fs.executeDeleteOperations(ops)
+}
+
+// validateTransactionKeys validates all keys before making changes.
+func (fs *FilesystemBackend) validateTransactionKeys(ops []Operation) error {
 	for _, op := range ops {
 		if _, err := fs.keyToPath(op.Key); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
-	// For filesystem, we'll do a best-effort transaction
-	// Create temp files for saves, then commit all at once
-	type pendingSave struct {
-		tempPath  string
-		finalPath string
-	}
-	var pendingSaves []pendingSave
+// prepareSaveOperations writes data to temp files for atomic commit.
+func (fs *FilesystemBackend) prepareSaveOperations(ops []Operation) ([]pendingSave, error) {
+	pendingSaves := make([]pendingSave, 0, len(ops))
 
-	// First pass: write to temp files
 	for _, op := range ops {
-		if op.Type == OpSave {
-			path, _ := fs.keyToPath(op.Key) // Already validated above
-			dir := filepath.Dir(path)
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				// Cleanup temp files on error (best effort, errors ignored)
-				for _, ps := range pendingSaves {
-					_ = os.Remove(ps.tempPath)
-				}
-				return fmt.Errorf("failed to create directory for %s: %w", op.Key, err)
-			}
-
-			tempPath := path + ".tmp"
-			if err := os.WriteFile(tempPath, op.Data, 0644); err != nil {
-				// Cleanup temp files on error (best effort, errors ignored)
-				for _, ps := range pendingSaves {
-					_ = os.Remove(ps.tempPath)
-				}
-				return fmt.Errorf("failed to write temp file for %s: %w", op.Key, err)
-			}
-			pendingSaves = append(pendingSaves, pendingSave{tempPath: tempPath, finalPath: path})
+		if op.Type != OpSave {
+			continue
 		}
+
+		ps, err := fs.prepareSingleSave(op)
+		if err != nil {
+			fs.cleanupTempFiles(pendingSaves)
+			return nil, err
+		}
+		pendingSaves = append(pendingSaves, ps)
+	}
+	return pendingSaves, nil
+}
+
+// prepareSingleSave prepares a single save operation.
+func (fs *FilesystemBackend) prepareSingleSave(op Operation) (pendingSave, error) {
+	path, err := fs.keyToPath(op.Key)
+	if err != nil {
+		return pendingSave{}, fmt.Errorf("invalid key %s: %w", op.Key, err)
 	}
 
-	// Second pass: commit saves by renaming
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return pendingSave{}, fmt.Errorf("failed to create directory for %s: %w", op.Key, err)
+	}
+
+	tempPath := path + ".tmp"
+	if err := os.WriteFile(tempPath, op.Data, 0600); err != nil {
+		return pendingSave{}, fmt.Errorf("failed to write temp file for %s: %w", op.Key, err)
+	}
+
+	return pendingSave{tempPath: tempPath, finalPath: path}, nil
+}
+
+// commitSaveOperations commits all pending saves by renaming temp files.
+func (fs *FilesystemBackend) commitSaveOperations(pendingSaves []pendingSave) error {
 	for _, ps := range pendingSaves {
 		if err := os.Rename(ps.tempPath, ps.finalPath); err != nil {
-			// Note: at this point we're in an inconsistent state
-			// In production, we'd need more sophisticated rollback
 			return fmt.Errorf("failed to commit save: %w", err)
 		}
 	}
-
-	// Third pass: execute deletes
-	for _, op := range ops {
-		if op.Type == OpDelete {
-			path, _ := fs.keyToPath(op.Key) // Already validated above
-			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("failed to delete %s: %w", op.Key, err)
-			}
-			fs.cleanEmptyDirs(filepath.Dir(path))
-		}
-	}
-
 	return nil
+}
+
+// executeDeleteOperations executes all delete operations.
+func (fs *FilesystemBackend) executeDeleteOperations(ops []Operation) error {
+	for _, op := range ops {
+		if op.Type != OpDelete {
+			continue
+		}
+		path, err := fs.keyToPath(op.Key)
+		if err != nil {
+			return fmt.Errorf("invalid key %s: %w", op.Key, err)
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to delete %s: %w", op.Key, err)
+		}
+		fs.cleanEmptyDirs(filepath.Dir(path))
+	}
+	return nil
+}
+
+// cleanupTempFiles removes temp files on error (best effort).
+func (fs *FilesystemBackend) cleanupTempFiles(pendingSaves []pendingSave) {
+	for _, ps := range pendingSaves {
+		_ = os.Remove(ps.tempPath)
+	}
 }
 
 // validateKey checks if a key is safe to use (no path traversal attempts).

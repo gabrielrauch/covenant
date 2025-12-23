@@ -71,8 +71,8 @@ func createOrderEventsContract() *contract.Contract {
 					},
 				},
 				MatchingRules: contract.MatchingRules{
-					"$.message.payload.order_id":   {Match: contract.MatchType_},
-					"$.message.payload.user_id":    {Match: contract.MatchType_},
+					"$.message.payload.order_id":   {Match: contract.MatchTypeValue},
+					"$.message.payload.user_id":    {Match: contract.MatchTypeValue},
 					"$.message.payload.total":      {Match: contract.MatchDecimal},
 					"$.message.payload.created_at": {Match: contract.MatchRegex, Pattern: `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`},
 				},
@@ -195,10 +195,10 @@ func createPaymentSagaContract() *contract.Contract {
 									Order:       2,
 									Destination: "payments.confirmed",
 									Payload: map[string]any{
-										"order_id":      "ord-001",
-										"payment_id":    "pay-001",
-										"status":        "confirmed",
-										"processed_at":  "2025-01-01T00:00:00Z",
+										"order_id":     "ord-001",
+										"payment_id":   "pay-001",
+										"status":       "confirmed",
+										"processed_at": "2025-01-01T00:00:00Z",
 									},
 								},
 								{
@@ -308,7 +308,7 @@ func TestProducerSpy(t *testing.T) {
 					},
 				},
 				MatchingRules: contract.MatchingRules{
-					"$.message.payload.user_id": {Match: contract.MatchType_},
+					"$.message.payload.user_id": {Match: contract.MatchTypeValue},
 					"$.message.payload.email":   {Match: contract.MatchRegex, Pattern: `^[^@]+@[^@]+\.[^@]+$`},
 				},
 			},

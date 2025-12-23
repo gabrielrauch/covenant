@@ -90,12 +90,9 @@ func (m *StreamMatcher) AddActual(msg StreamMessage) {
 }
 
 // Match checks if the actual sequence matches the expected.
-func (m *StreamMatcher) Match() (bool, []string) {
-	var errors []string
-
+func (m *StreamMatcher) Match() (matched bool, errs []string) {
 	if len(m.actual) != len(m.expected) {
-		errors = append(errors,
-			"sequence length mismatch: expected %d messages, got %d")
+		errs = append(errs, "sequence length mismatch: expected %d messages, got %d")
 	}
 
 	minLen := len(m.expected)
@@ -108,12 +105,11 @@ func (m *StreamMatcher) Match() (bool, []string) {
 		act := m.actual[i]
 
 		if exp.Direction != act.Direction {
-			errors = append(errors,
-				"message %d: expected %s, got %s")
+			errs = append(errs, "message %d: expected %s, got %s")
 		}
 	}
 
-	return len(errors) == 0, errors
+	return len(errs) == 0, errs
 }
 
 // StreamExpectation defines expectations for a streaming interaction.

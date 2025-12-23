@@ -56,9 +56,9 @@ func (v *Verifier) OnProviderState(name string, handler StateHandler) *Verifier 
 
 // VerificationOptions configures verification behavior.
 type VerificationOptions struct {
-	Timeout         time.Duration
-	FailFast        bool
-	StateSetupURL   string // Optional URL to call for state setup
+	Timeout       time.Duration
+	FailFast      bool
+	StateSetupURL string // Optional URL to call for state setup
 }
 
 // VerificationReport contains the results of provider verification.
@@ -119,8 +119,8 @@ func (v *Verifier) verifyContract(ctx context.Context, c *contract.Contract, opt
 		VerifiedAt:      time.Now().UTC(),
 	}
 
-	for _, interaction := range c.Interactions {
-		interactionResult := v.verifyInteraction(ctx, interaction, c.MatchingRules, opts)
+	for i := range c.Interactions {
+		interactionResult := v.verifyInteraction(ctx, &c.Interactions[i], c.MatchingRules, opts)
 		result.InteractionResults = append(result.InteractionResults, interactionResult)
 	}
 
@@ -141,7 +141,7 @@ func (v *Verifier) verifyContract(ctx context.Context, c *contract.Contract, opt
 }
 
 // verifyInteraction verifies a single interaction.
-func (v *Verifier) verifyInteraction(ctx context.Context, interaction contract.Interaction, contractRules contract.MatchingRules, opts VerificationOptions) api.InteractionResult {
+func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules, _ VerificationOptions) api.InteractionResult {
 	start := time.Now()
 
 	result := api.InteractionResult{
@@ -190,7 +190,7 @@ func (v *Verifier) verifyInteraction(ctx context.Context, interaction contract.I
 }
 
 // verifyHTTPInteraction verifies an HTTP interaction.
-func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction contract.Interaction, contractRules contract.MatchingRules) api.InteractionResult {
+func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules) api.InteractionResult {
 	result := api.InteractionResult{
 		ID:          interaction.ID,
 		Description: interaction.Description,
@@ -240,9 +240,11 @@ func (v *Verifier) VerifyWithTesting(t *testing.T) {
 		t.Fatalf("Verification failed: %v", err)
 	}
 
-	for _, result := range report.Results {
+	for i := range report.Results {
+		result := &report.Results[i]
 		t.Run(fmt.Sprintf("%s/%s", result.Consumer.Name, result.ContractVersion), func(t *testing.T) {
-			for _, ir := range result.InteractionResults {
+			for j := range result.InteractionResults {
+				ir := &result.InteractionResults[j]
 				t.Run(ir.Description, func(t *testing.T) {
 					if !ir.Success {
 						for _, err := range ir.Errors {

@@ -39,7 +39,7 @@ func (v *Validator) WithClient(client *http.Client) *Validator {
 }
 
 // Validate validates an HTTP interaction against actual data.
-func (v *Validator) Validate(ctx context.Context, interaction contract.Interaction, actual validator.ActualData) validator.ValidationResult {
+func (v *Validator) Validate(ctx context.Context, interaction *contract.Interaction, actual validator.ActualData) validator.ValidationResult {
 	if interaction.Payload.HTTP == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no HTTP payload",
@@ -53,7 +53,7 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 	if actual.Status != nil {
 		if statusCode, ok := actual.Status.(int); ok {
 			if statusCode != payload.Response.Status {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     "$.response.status",
 					Expected: fmt.Sprintf("%d", payload.Response.Status),
 					Actual:   fmt.Sprintf("%d", statusCode),
@@ -70,8 +70,8 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 		interaction.MatchingRules,
 		common.DefaultHTTPHeaderConfig("$.response.headers"),
 	)
-	for _, err := range headerErrors {
-		result.AddError(err)
+	for i := range headerErrors {
+		result.AddError(&headerErrors[i])
 	}
 
 	// Validate response body
@@ -89,7 +89,7 @@ func (v *Validator) Validate(ctx context.Context, interaction contract.Interacti
 }
 
 // ValidateRequest validates an HTTP request against the contract.
-func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.Request) validator.ValidationResult {
+func (v *Validator) ValidateRequest(interaction *contract.Interaction, req *http.Request) validator.ValidationResult {
 	if interaction.Payload.HTTP == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no HTTP payload",
@@ -101,7 +101,7 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 
 	// Validate method
 	if req.Method != expected.Method {
-		result.AddError(validator.ValidationError{
+		result.AddError(&validator.ValidationError{
 			Path:     "$.request.method",
 			Expected: expected.Method,
 			Actual:   req.Method,
@@ -111,7 +111,7 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 
 	// Validate path
 	if req.URL.Path != expected.Path {
-		result.AddError(validator.ValidationError{
+		result.AddError(&validator.ValidationError{
 			Path:     "$.request.path",
 			Expected: expected.Path,
 			Actual:   req.URL.Path,
@@ -125,7 +125,7 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 		for key, expectedValue := range expected.Query {
 			actualValue := actualQuery.Get(key)
 			if actualValue != expectedValue {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     fmt.Sprintf("$.request.query.%s", key),
 					Expected: expectedValue,
 					Actual:   actualValue,
@@ -150,8 +150,8 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 			interaction.MatchingRules,
 			common.DefaultHTTPHeaderConfig("$.request.headers"),
 		)
-		for _, err := range headerErrors {
-			result.AddError(err)
+		for i := range headerErrors {
+			result.AddError(&headerErrors[i])
 		}
 	}
 
@@ -159,7 +159,7 @@ func (v *Validator) ValidateRequest(interaction contract.Interaction, req *http.
 	if expected.Body != nil && req.Body != nil {
 		bodyBytes, err := io.ReadAll(io.LimitReader(req.Body, MaxBodySize))
 		if err != nil {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:    "$.request.body",
 				Message: fmt.Sprintf("failed to read request body: %v", err),
 			})
@@ -185,7 +185,7 @@ func (v *Validator) validateBody(expected any, actualBytes []byte, basePath stri
 	// Parse actual body
 	var actual any
 	if err := json.Unmarshal(actualBytes, &actual); err != nil {
-		result.AddError(validator.ValidationError{
+		result.AddError(&validator.ValidationError{
 			Path:    basePath,
 			Message: fmt.Sprintf("failed to parse response body as JSON: %v", err),
 		})
@@ -197,7 +197,7 @@ func (v *Validator) validateBody(expected any, actualBytes []byte, basePath stri
 	for path, rule := range rules {
 		if strings.HasPrefix(path, basePath) {
 			if err := engine.LoadRules(contract.MatchingRules{path: rule}); err != nil {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:    path,
 					Message: fmt.Sprintf("failed to compile matching rule: %v", err),
 				})
@@ -209,7 +209,7 @@ func (v *Validator) validateBody(expected any, actualBytes []byte, basePath stri
 	matchResult := engine.Match(map[string]any{"response": map[string]any{"body": actual}})
 	if !matchResult.Success {
 		for _, err := range matchResult.Errors {
-			result.AddError(validator.ValidationError{
+			result.AddError(&validator.ValidationError{
 				Path:     err.Path,
 				Expected: err.Expected,
 				Actual:   err.Actual,
@@ -232,7 +232,7 @@ func (v *Validator) validateBody(expected any, actualBytes []byte, basePath stri
 				}
 			}
 			if !hasExplicitError {
-				result.AddError(validator.ValidationError{
+				result.AddError(&validator.ValidationError{
 					Path:     basePath + err.Path[1:], // Replace $ with basePath
 					Expected: err.Expected,
 					Actual:   err.Actual,
@@ -246,7 +246,7 @@ func (v *Validator) validateBody(expected any, actualBytes []byte, basePath stri
 }
 
 // ExecuteInteraction executes an HTTP interaction against a provider and returns the response.
-func (v *Validator) ExecuteInteraction(ctx context.Context, baseURL string, interaction contract.Interaction) (*http.Response, error) {
+func (v *Validator) ExecuteInteraction(ctx context.Context, baseURL string, interaction *contract.Interaction) (*http.Response, error) {
 	if interaction.Payload.HTTP == nil {
 		return nil, fmt.Errorf("interaction has no HTTP payload")
 	}
@@ -260,7 +260,7 @@ func (v *Validator) ExecuteInteraction(ctx context.Context, baseURL string, inte
 }
 
 // buildRequest builds an HTTP request from a contract interaction.
-func (v *Validator) buildRequest(ctx context.Context, baseURL string, interaction contract.Interaction) (*http.Request, error) {
+func (v *Validator) buildRequest(ctx context.Context, baseURL string, interaction *contract.Interaction) (*http.Request, error) {
 	expected := interaction.Payload.HTTP.Request
 
 	// Build URL
@@ -282,7 +282,8 @@ func (v *Validator) buildRequest(ctx context.Context, baseURL string, interactio
 	// Build body
 	var body io.Reader
 	if expected.Body != nil {
-		bodyBytes, err := json.Marshal(expected.Body)
+		var bodyBytes []byte
+		bodyBytes, err = json.Marshal(expected.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
@@ -304,7 +305,7 @@ func (v *Validator) buildRequest(ctx context.Context, baseURL string, interactio
 }
 
 // ValidateResponse validates an HTTP response against the contract.
-func (v *Validator) ValidateResponse(interaction contract.Interaction, resp *http.Response, contractRules contract.MatchingRules) validator.ValidationResult {
+func (v *Validator) ValidateResponse(interaction *contract.Interaction, resp *http.Response, contractRules contract.MatchingRules) validator.ValidationResult {
 	if interaction.Payload.HTTP == nil {
 		return validator.NewFailureResult(validator.ValidationError{
 			Message: "interaction has no HTTP payload",
@@ -340,10 +341,10 @@ func (v *Validator) ValidateResponse(interaction contract.Interaction, resp *htt
 	}
 
 	// Create interaction with merged rules for validation
-	mergedInteraction := interaction
+	mergedInteraction := *interaction
 	mergedInteraction.MatchingRules = mergedRules
 
-	return v.Validate(context.Background(), mergedInteraction, validator.ActualData{
+	return v.Validate(context.Background(), &mergedInteraction, validator.ActualData{
 		Response: bodyBytes,
 		Metadata: metadata,
 		Status:   resp.StatusCode,

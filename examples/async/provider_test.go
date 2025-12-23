@@ -99,7 +99,7 @@ func testAsyncInteraction(t *testing.T, validator *asyncvalidator.Validator, int
 		// Simulate producing a message that matches the contract
 		testMessage := produceTestMessage(async)
 
-		result := validator.ValidateMessage(interaction, testMessage, async.Message.Headers)
+		result := validator.ValidateMessage(&interaction, testMessage, async.Message.Headers)
 		if !result.Success {
 			for _, err := range result.Errors {
 				t.Errorf("Validation error: %s - %s (expected: %v, actual: %v)",
@@ -291,7 +291,7 @@ func TestMessageValidation(t *testing.T) {
 		"event-type":   "OrderCreated",
 	}
 
-	result := validator.ValidateMessage(interaction, validBytes, validHeaders)
+	result := validator.ValidateMessage(&interaction, validBytes, validHeaders)
 	if !result.Success {
 		t.Errorf("Valid message should pass: %v", result.Errors)
 	}
@@ -306,7 +306,7 @@ func TestMessageValidation(t *testing.T) {
 	}
 	invalidBytes, _ := json.Marshal(invalidMessage)
 
-	result = validator.ValidateMessage(interaction, invalidBytes, validHeaders)
+	result = validator.ValidateMessage(&interaction, invalidBytes, validHeaders)
 	// Note: This may or may not fail depending on matching rules
 	t.Logf("Invalid message validation: success=%v, errors=%d", result.Success, len(result.Errors))
 }

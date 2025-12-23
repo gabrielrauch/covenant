@@ -95,7 +95,7 @@ func TestValidator_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.Validate(context.Background(), tt.interaction, tt.actual)
+			result := v.Validate(context.Background(), &tt.interaction, tt.actual)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("Validate() success = %v, want %v, errors: %v",
@@ -184,7 +184,7 @@ func TestValidator_ValidateMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			v := NewValidator()
-			result := v.ValidateMessage(tt.interaction, tt.message, tt.headers)
+			result := v.ValidateMessage(&tt.interaction, tt.message, tt.headers)
 
 			if result.Success != tt.wantSuccess {
 				t.Errorf("ValidateMessage() success = %v, want %v, errors: %v",
@@ -201,7 +201,6 @@ func TestValidator_validatePayload(t *testing.T) {
 		result := v.validatePayload(
 			map[string]any{"key": "value"},
 			[]byte("not valid json"),
-			"$.message.payload",
 			nil,
 		)
 		if result.Success {
@@ -213,7 +212,6 @@ func TestValidator_validatePayload(t *testing.T) {
 		result := v.validatePayload(
 			map[string]any{"id": "123"},
 			[]byte(`{"id": "123"}`),
-			"$.message.payload",
 			nil,
 		)
 		if !result.Success {
@@ -225,9 +223,8 @@ func TestValidator_validatePayload(t *testing.T) {
 		result := v.validatePayload(
 			map[string]any{"id": "example"},
 			[]byte(`{"id": "different"}`),
-			"$.message.payload",
 			contract.MatchingRules{
-				"$.message.payload.id": {Match: contract.MatchType_},
+				"$.message.payload.id": {Match: contract.MatchTypeValue},
 			},
 		)
 		if !result.Success {

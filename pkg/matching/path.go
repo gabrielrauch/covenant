@@ -69,10 +69,9 @@ func parsePath(path string) ([]segment, error) {
 
 // segment represents a single path segment.
 type segment struct {
-	key       string // Property name
-	index     int    // Array index (-1 if not an index)
-	wildcard  bool   // True if [*]
-	recursive bool   // True if **
+	key      string // Property name
+	index    int    // Array index (-1 if not an index)
+	wildcard bool   // True if [*]
 }
 
 // parseJSONPointer parses a JSON Pointer (RFC 6901).
@@ -100,7 +99,7 @@ func parseJSONPointer(path string) ([]segment, error) {
 	return segments, nil
 }
 
-var jsonPathRegex = regexp.MustCompile(`\$|\.([a-zA-Z_][a-zA-Z0-9_]*)|\.?\[([0-9]+|\*)\]`)
+var jsonPathRegex = regexp.MustCompile(`\$|\.([a-zA-Z_][a-zA-Z0-9_]*)|\.?\[(\d+|\*)\]`)
 
 // parseJSONPath parses a JSONPath expression.
 func parseJSONPath(path string) ([]segment, error) {
@@ -123,7 +122,10 @@ func parseJSONPath(path string) ([]segment, error) {
 			if match[2] == "*" {
 				segments = append(segments, segment{wildcard: true, index: -1})
 			} else {
-				idx, _ := strconv.Atoi(match[2])
+				idx, err := strconv.Atoi(match[2])
+				if err != nil {
+					return nil, fmt.Errorf("invalid array index in path: %w", err)
+				}
 				segments = append(segments, segment{index: idx})
 			}
 		}
@@ -145,7 +147,7 @@ func parseSimplePath(path string) ([]segment, error) {
 
 			if key != "" {
 				segments[i] = segment{key: key, index: -1}
-				i++
+				// Note: i is controlled by range loop; array indices are appended below
 			}
 
 			// Parse array indices
@@ -289,7 +291,7 @@ func resolveAllSegments(segments []segment, currentPath string, data any) ([]Pat
 
 // Set sets a value at the given path in the data structure.
 // Creates intermediate objects/arrays as needed.
-func (r *PathResolver) Set(path string, data any, value any) error {
+func (r *PathResolver) Set(path string, data, value any) error {
 	segments, err := parsePath(path)
 	if err != nil {
 		return err
@@ -299,7 +301,7 @@ func (r *PathResolver) Set(path string, data any, value any) error {
 }
 
 // setSegments sets a value by traversing/creating the path.
-func setSegments(segments []segment, data any, value any) error {
+func setSegments(segments []segment, data, value any) error {
 	if len(segments) == 0 {
 		return fmt.Errorf("cannot set root")
 	}
@@ -309,7 +311,6 @@ func setSegments(segments []segment, data any, value any) error {
 		seg := segments[i]
 
 		var next any
-		var err error
 
 		if seg.index >= 0 {
 			arr, ok := current.([]any)
@@ -325,13 +326,12 @@ func setSegments(segments []segment, data any, value any) error {
 			if !ok {
 				return fmt.Errorf("property access requires object at segment %d", i)
 			}
-			next, err = m[seg.key], nil
+			next = m[seg.key]
 			if next == nil {
 				// Create intermediate object
 				next = make(map[string]any)
 				m[seg.key] = next
 			}
-			_ = err
 		}
 		current = next
 	}

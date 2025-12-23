@@ -72,7 +72,7 @@ func createUserServiceContract() *contract.Contract {
 					},
 				},
 				MatchingRules: contract.MatchingRules{
-					"$.response.metadata.x-request-id": {Match: contract.MatchType_},
+					"$.response.metadata.x-request-id": {Match: contract.MatchTypeValue},
 				},
 			},
 		},
@@ -189,7 +189,7 @@ func createStreamingContract() *contract.Contract {
 					},
 				},
 				MatchingRules: contract.MatchingRules{
-					"$.response.message.event_id":  {Match: contract.MatchType_},
+					"$.response.message.event_id":  {Match: contract.MatchTypeValue},
 					"$.response.message.timestamp": {Match: contract.MatchRegex, Pattern: `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$`},
 				},
 			},

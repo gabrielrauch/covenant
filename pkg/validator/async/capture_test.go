@@ -1,6 +1,7 @@
 package async
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/gabrielrauch/covenant/pkg/contract"
@@ -307,7 +308,7 @@ func TestInMemoryBroker_Publish(t *testing.T) {
 	if len(messages) != 1 {
 		t.Fatalf("Expected 1 message, got %d", len(messages))
 	}
-	if string(messages[0].Payload) != string(payload) {
+	if !bytes.Equal(messages[0].Payload, payload) {
 		t.Error("Payload mismatch")
 	}
 	if messages[0].Headers["content-type"] != "application/json" {
@@ -344,8 +345,12 @@ func TestInMemoryBroker_Messages(t *testing.T) {
 	}
 
 	// With messages
-	broker.Publish("queue", nil, []byte(`{}`))
-	broker.Publish("queue", nil, []byte(`{}`))
+	if err := broker.Publish("queue", nil, []byte(`{}`)); err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
+	if err := broker.Publish("queue", nil, []byte(`{}`)); err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
 
 	messages = broker.Messages("queue")
 	if len(messages) != 2 {
@@ -356,8 +361,12 @@ func TestInMemoryBroker_Messages(t *testing.T) {
 func TestInMemoryBroker_Clear(t *testing.T) {
 	broker := NewInMemoryBroker()
 
-	broker.Publish("queue1", nil, []byte(`{}`))
-	broker.Publish("queue2", nil, []byte(`{}`))
+	if err := broker.Publish("queue1", nil, []byte(`{}`)); err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
+	if err := broker.Publish("queue2", nil, []byte(`{}`)); err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
 
 	broker.Clear()
 

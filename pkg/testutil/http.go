@@ -103,16 +103,22 @@ func (r *HTTPResponse) ExpectJSONBody(expected any) *HTTPResponse {
 	}
 
 	var expectedJSON, actualJSON any
-	if err := json.Unmarshal(expectedBytes, &expectedJSON); err != nil {
+	if err = json.Unmarshal(expectedBytes, &expectedJSON); err != nil {
 		r.t.Fatalf("failed to unmarshal expected: %v", err)
 	}
-	if err := json.Unmarshal(r.Body.Bytes(), &actualJSON); err != nil {
+	if err = json.Unmarshal(r.Body.Bytes(), &actualJSON); err != nil {
 		r.t.Fatalf("failed to unmarshal actual body: %v", err)
 	}
 
 	// Re-marshal for consistent comparison
-	expectedNorm, _ := json.Marshal(expectedJSON)
-	actualNorm, _ := json.Marshal(actualJSON)
+	expectedNorm, err := json.Marshal(expectedJSON)
+	if err != nil {
+		r.t.Fatalf("failed to re-marshal expected: %v", err)
+	}
+	actualNorm, err := json.Marshal(actualJSON)
+	if err != nil {
+		r.t.Fatalf("failed to re-marshal actual: %v", err)
+	}
 
 	if !bytes.Equal(expectedNorm, actualNorm) {
 		r.t.Errorf("body mismatch:\nexpected: %s\nactual:   %s", expectedNorm, actualNorm)
@@ -154,7 +160,9 @@ func JSONHandler(status int, body any) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
 		if body != nil {
-			json.NewEncoder(w).Encode(body)
+			if err := json.NewEncoder(w).Encode(body); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 		}
 	}
 }
@@ -169,6 +177,8 @@ func EchoHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", r.Header.Get("Content-Type"))
 		w.WriteHeader(http.StatusOK)
-		io.Copy(w, r.Body)
+		if _, err := io.Copy(w, r.Body); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }

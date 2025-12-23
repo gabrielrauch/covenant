@@ -92,7 +92,9 @@ func (p *Pact) Verify() error {
 	}
 
 	for _, c := range p.contracts {
-		contract.UpdateChecksum(c)
+		if err := contract.UpdateChecksum(c); err != nil {
+			return fmt.Errorf("failed to update checksum: %w", err)
+		}
 		filename := fmt.Sprintf("%s-%s.json", p.consumer, p.provider)
 		outPath := filepath.Join(p.outDir, filename)
 		if err := contract.SaveToFile(c, outPath); err != nil {
@@ -151,7 +153,11 @@ func RunTest(t *testing.T, consumer, provider string, interactions []*Interactio
 	if err != nil {
 		t.Fatalf("Failed to setup pact: %v", err)
 	}
-	defer pact.Teardown()
+	defer func() {
+		if err := pact.Teardown(); err != nil {
+			t.Logf("Warning: failed to teardown pact: %v", err)
+		}
+	}()
 
 	// Run the test
 	testFunc(mockURL)

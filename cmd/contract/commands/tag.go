@@ -47,7 +47,10 @@ func Tag(ctx context.Context, args []string) error {
 			tags[i] = strings.TrimSpace(tags[i])
 		}
 
-		data, _ := json.Marshal(map[string][]string{"tags": tags})
+		data, err := json.Marshal(map[string][]string{"tags": tags})
+		if err != nil {
+			return fmt.Errorf("failed to marshal tags: %w", err)
+		}
 		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/contracts/%s/tags", *brokerURL, *contractID), bytes.NewReader(data))
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
@@ -70,7 +73,7 @@ func Tag(ctx context.Context, args []string) error {
 	// Remove tags
 	if *removeTags != "" {
 		tags := strings.TrimSpace(*removeTags)
-		req, err := http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/contracts/%s/tags?tags=%s", *brokerURL, *contractID, tags), nil)
+		req, err := http.NewRequestWithContext(ctx, "DELETE", fmt.Sprintf("%s/contracts/%s/tags?tags=%s", *brokerURL, *contractID, tags), http.NoBody)
 		if err != nil {
 			return fmt.Errorf("failed to create request: %w", err)
 		}
