@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2025-12-22
+
+### Changed
+- Migrated golangci-lint configuration to v2 format
+- Moved formatters (gofmt, goimports) to dedicated `formatters` section
+- Updated linter exclusions to use new `linters.exclusions` structure
+
+### Fixed
+- GoReleaser Docker build using separate `Dockerfile.goreleaser` for pre-built binaries
+- Homebrew formula upload skipped until token configured
+
 ## [0.3.0] - 2025-12-22
 
 ### Added
