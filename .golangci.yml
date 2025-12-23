@@ -8,7 +8,6 @@ linters:
   enable:
     # Default linters
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -23,8 +22,6 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
     - goprintffuncname
     - gosec
     - misspell
@@ -34,96 +31,102 @@ linters:
     - prealloc
     - revive
     - rowserrcheck
-    - stylecheck
     - unconvert
     - unparam
     - whitespace
 
-linters-settings:
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
 
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
 
-  gocyclo:
-    min-complexity: 15
+    gocyclo:
+      min-complexity: 15
 
-  goconst:
-    min-len: 3
-    min-occurrences: 3
+    goconst:
+      min-len: 3
+      min-occurrences: 3
 
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - dupImport
-      - ifElseChain
-      - octalLiteral
-      - whyNoLint
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - dupImport
+        - ifElseChain
+        - octalLiteral
+        - whyNoLint
 
-  goimports:
-    local-prefixes: github.com/gabrielrauch/covenant
+    gosec:
+      excludes:
+        - G104  # Audit errors not checked (we handle this case-by-case)
 
-  gosec:
-    excludes:
-      - G104  # Audit errors not checked (we handle this case-by-case)
+    misspell:
+      locale: US
 
-  misspell:
-    locale: US
+    nakedret:
+      max-func-lines: 30
 
-  nakedret:
-    max-func-lines: 30
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: var-declaration
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: indent-error-flow
+        - name: errorf
 
-  revive:
+  exclusions:
+    # Exclude some linters from running on test files
     rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
+      - path: _test\.go
+        linters:
+          - dupl
+          - gosec
+          - goconst
 
-issues:
-  exclude-rules:
-    # Exclude some linters from running on tests files
-    - path: _test\.go
-      linters:
-        - dupl
-        - gosec
-        - goconst
+      # Exclude known issues in generated files
+      - path: \.pb\.go
+        linters:
+          - all
 
-    # Exclude known issues in generated files
-    - path: \.pb\.go
-      linters:
-        - all
+    # Use default exclusion presets
+    presets:
+      - std-error-handling
 
-  max-issues-per-linter: 0
-  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/gabrielrauch/covenant
 
 output:
   formats:
-    colored-line-number:
+    text:
       path: stdout
-  print-issued-lines: true
-  print-linter-name: true
+      colors: true
