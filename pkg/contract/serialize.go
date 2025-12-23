@@ -4,15 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gabrielrauch/covenant/pkg/pathutil"
 )
 
 // LoadFromFile loads a contract from a JSON file.
 func LoadFromFile(path string) (*Contract, error) {
-	f, err := os.Open(path)
+	f, err := pathutil.SecureOpen(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open contract file: %w", err)
 	}
@@ -52,7 +53,7 @@ func LoadFromBytes(data []byte) (*Contract, error) {
 
 // SaveToFile saves a contract to a JSON file.
 func SaveToFile(c *Contract, path string) error {
-	f, err := os.Create(path)
+	f, err := pathutil.SecureCreate(path)
 	if err != nil {
 		return fmt.Errorf("failed to create contract file: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
-	"github.com/gabrielrauch/covenant/pkg/validator/common"
+	"github.com/gabrielrauch/covenant/pkg/validator/validation"
 )
 
 // Validator implements gRPC protocol validation.
@@ -46,11 +46,11 @@ func (v *Validator) Validate(ctx context.Context, interaction *contract.Interact
 	}
 
 	// Validate response metadata
-	metadataErrors := common.ValidateHeaders(
+	metadataErrors := validation.ValidateHeaders(
 		payload.Response.Metadata,
 		actual.Metadata,
 		interaction.MatchingRules,
-		common.DefaultGRPCMetadataConfig("$.response.metadata"),
+		validation.DefaultGRPCMetadataConfig("$.response.metadata"),
 	)
 	for i := range metadataErrors {
 		result.AddError(&metadataErrors[i])
@@ -82,11 +82,11 @@ func (v *Validator) ValidateRequest(interaction *contract.Interaction, message [
 	expected := interaction.Payload.GRPC.Request
 
 	// Validate metadata
-	metadataErrors := common.ValidateHeaders(
+	metadataErrors := validation.ValidateHeaders(
 		expected.Metadata,
 		metadata,
 		interaction.MatchingRules,
-		common.DefaultGRPCMetadataConfig("$.request.metadata"),
+		validation.DefaultGRPCMetadataConfig("$.request.metadata"),
 	)
 	for i := range metadataErrors {
 		result.AddError(&metadataErrors[i])

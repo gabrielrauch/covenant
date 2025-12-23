@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "5d65bd83-3d50-4fdc-aec2-f71c78b3bb0f",
+    "id": "b7dad94c-424d-46ed-9773-1abc852db506",
     "version": "1.0.0",
     "consumer": {
       "name": "user-dashboard"
@@ -9,7 +9,7 @@
       "name": "user-service"
     },
     "status": "draft",
-    "created_at": "2025-12-23T00:12:56.928935Z"
+    "created_at": "2025-12-23T03:20:41.377636Z"
   },
   "interactions": [
     {

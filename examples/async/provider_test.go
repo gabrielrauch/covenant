@@ -1,4 +1,4 @@
-package async_example
+package asyncexample
 
 import (
 	"encoding/json"
@@ -38,7 +38,10 @@ func (p *OrdersServiceProvider) CreateOrder(userID string, items []Item) (*Order
 	}
 
 	// Publish the event
-	eventBytes, _ := json.Marshal(event)
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		return nil, err
+	}
 	headers := map[string]string{
 		"content-type": "application/json",
 		"event-type":   "OrderCreated",
@@ -83,7 +86,7 @@ func TestProviderVerification_Async(t *testing.T) {
 				}
 
 				t.Run(interaction.Description, func(t *testing.T) {
-					testAsyncInteraction(t, validator, interaction)
+					testAsyncInteraction(t, validator, &interaction)
 				})
 			}
 		})
@@ -91,7 +94,7 @@ func TestProviderVerification_Async(t *testing.T) {
 }
 
 // testAsyncInteraction tests an async interaction against the provider.
-func testAsyncInteraction(t *testing.T, validator *asyncvalidator.Validator, interaction contract.Interaction) {
+func testAsyncInteraction(t *testing.T, validator *asyncvalidator.Validator, interaction *contract.Interaction) {
 	async := interaction.Payload.Async
 
 	// For publish direction, we verify the provider produces valid messages
@@ -99,7 +102,7 @@ func testAsyncInteraction(t *testing.T, validator *asyncvalidator.Validator, int
 		// Simulate producing a message that matches the contract
 		testMessage := produceTestMessage(async)
 
-		result := validator.ValidateMessage(&interaction, testMessage, async.Message.Headers)
+		result := validator.ValidateMessage(interaction, testMessage, async.Message.Headers)
 		if !result.Success {
 			for _, err := range result.Errors {
 				t.Errorf("Validation error: %s - %s (expected: %v, actual: %v)",
@@ -118,7 +121,10 @@ func testAsyncInteraction(t *testing.T, validator *asyncvalidator.Validator, int
 func produceTestMessage(async *contract.AsyncPayload) []byte {
 	// In a real test, this would call the actual provider code
 	// Here we produce a message that matches the expected structure
-	msg, _ := json.Marshal(async.Message.Payload)
+	msg, err := json.Marshal(async.Message.Payload)
+	if err != nil {
+		return nil // Test will fail on validation if marshal fails
+	}
 	return msg
 }
 
@@ -249,10 +255,13 @@ func TestConsumerServiceVerification(t *testing.T) {
 
 		t.Run(interaction.Description, func(t *testing.T) {
 			// Convert expected message to JSON
-			msgBytes, _ := json.Marshal(interaction.Payload.Async.Message.Payload)
+			msgBytes, err := json.Marshal(interaction.Payload.Async.Message.Payload)
+			if err != nil {
+				t.Fatalf("Failed to marshal message payload: %v", err)
+			}
 
 			// Process through consumer
-			err := notificationService.HandleUserRegistered(msgBytes)
+			err = notificationService.HandleUserRegistered(msgBytes)
 			if err != nil {
 				t.Errorf("Consumer failed to handle message: %v", err)
 			}
@@ -285,7 +294,10 @@ func TestMessageValidation(t *testing.T) {
 		"items":      []map[string]any{{"sku": "ITEM-1", "name": "Item", "quantity": 1, "price": 250.50}},
 		"created_at": "2025-06-15T10:30:00Z",
 	}
-	validBytes, _ := json.Marshal(validMessage)
+	validBytes, err := json.Marshal(validMessage)
+	if err != nil {
+		t.Fatalf("Failed to marshal valid message: %v", err)
+	}
 	validHeaders := map[string]string{
 		"content-type": "application/json",
 		"event-type":   "OrderCreated",
@@ -304,7 +316,10 @@ func TestMessageValidation(t *testing.T) {
 		"items":      []map[string]any{},
 		"created_at": "invalid-date", // Invalid format
 	}
-	invalidBytes, _ := json.Marshal(invalidMessage)
+	invalidBytes, err := json.Marshal(invalidMessage)
+	if err != nil {
+		t.Fatalf("Failed to marshal invalid message: %v", err)
+	}
 
 	result = validator.ValidateMessage(&interaction, invalidBytes, validHeaders)
 	// Note: This may or may not fail depending on matching rules

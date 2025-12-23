@@ -106,6 +106,12 @@ linters:
           - gosec
           - goconst
 
+      # pathutil/file.go is the secure file wrapper - G304 is expected here
+      # as this module provides validated file operations for the rest of the codebase
+      - path: pkg/pathutil/file\.go
+        linters:
+          - gosec
+
       # Exclude known issues in generated files
       - path: \.pb\.go
         linters:

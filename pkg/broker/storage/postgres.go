@@ -67,13 +67,13 @@ func buildPostgresQueries(tableName string) postgresQueries {
 }
 
 // NewPostgresBackend creates a new Postgres storage backend.
-func NewPostgresBackend(cfg PostgresConfig) (*PostgresBackend, error) {
+func NewPostgresBackend(ctx context.Context, cfg PostgresConfig) (*PostgresBackend, error) {
 	if cfg.DB == nil {
 		return nil, fmt.Errorf("database connection is required")
 	}
 
 	// Verify database connection is valid
-	if err := cfg.DB.Ping(); err != nil {
+	if err := cfg.DB.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -94,7 +94,7 @@ func NewPostgresBackend(cfg PostgresConfig) (*PostgresBackend, error) {
 	}
 
 	// Create table if not exists
-	if err := backend.ensureTable(); err != nil {
+	if err := backend.ensureTable(ctx); err != nil {
 		return nil, fmt.Errorf("failed to create table: %w", err)
 	}
 
@@ -102,8 +102,8 @@ func NewPostgresBackend(cfg PostgresConfig) (*PostgresBackend, error) {
 }
 
 // ensureTable creates the storage table if it doesn't exist.
-func (p *PostgresBackend) ensureTable() error {
-	_, err := p.db.Exec(p.queries.createTable)
+func (p *PostgresBackend) ensureTable(ctx context.Context) error {
+	_, err := p.db.ExecContext(ctx, p.queries.createTable)
 	return err
 }
 
@@ -238,10 +238,10 @@ type KeyValue struct {
 }
 
 // CreateIndexes creates indexes for better query performance.
-func (p *PostgresBackend) CreateIndexes() error {
+func (p *PostgresBackend) CreateIndexes(ctx context.Context) error {
 	indexes := []string{p.queries.indexKeyPrefix, p.queries.indexUpdated}
 	for _, idx := range indexes {
-		if _, err := p.db.Exec(idx); err != nil {
+		if _, err := p.db.ExecContext(ctx, idx); err != nil {
 			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}

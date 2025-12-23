@@ -1,7 +1,8 @@
-package http
+package httpvalidator
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -79,7 +80,12 @@ func NewMockServer(interactions []contract.Interaction, opts ...MockServerOption
 
 // Start starts the mock server on an ephemeral port.
 func (s *MockServer) Start() error {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	return s.StartContext(context.Background())
+}
+
+// StartContext starts the mock server on an ephemeral port with context.
+func (s *MockServer) StartContext(ctx context.Context) error {
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}

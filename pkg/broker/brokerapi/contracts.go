@@ -1,5 +1,5 @@
-// Package api provides the broker API for contract management.
-package api
+// Package brokerapi provides the broker API for contract management.
+package brokerapi
 
 import (
 	"context"

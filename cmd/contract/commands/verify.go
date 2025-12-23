@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gabrielrauch/covenant/pkg/broker/api"
+	"github.com/gabrielrauch/covenant/pkg/broker/brokerapi"
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	httpvalidator "github.com/gabrielrauch/covenant/pkg/validator/http"
 )
@@ -113,11 +113,11 @@ func verifyContractFile(ctx context.Context, cfg *verifyConfig, validator *httpv
 	fmt.Printf("\n=== Verifying contract: %s ===\n", filepath.Base(file))
 	fmt.Printf("Consumer: %s, Provider: %s v%s\n", c.Metadata.Consumer.Name, c.Metadata.Provider.Name, c.Metadata.Version)
 
-	result := api.VerificationResult{
+	result := brokerapi.VerificationResult{
 		ContractID:      c.Metadata.ID,
 		ContractVersion: c.Metadata.Version,
-		Provider:        api.ServiceVersion{Name: cfg.providerName, Version: cfg.providerVersion},
-		Consumer:        api.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
+		Provider:        brokerapi.ServiceVersion{Name: cfg.providerName, Version: cfg.providerVersion},
+		Consumer:        brokerapi.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
 		VerifiedAt:      time.Now().UTC(),
 	}
 
@@ -132,7 +132,7 @@ func verifyContractFile(ctx context.Context, cfg *verifyConfig, validator *httpv
 	return passed, failed, nil
 }
 
-func verifyInteractions(ctx context.Context, cfg *verifyConfig, validator *httpvalidator.Validator, c *contract.Contract, result *api.VerificationResult) (passed, failed int) {
+func verifyInteractions(ctx context.Context, cfg *verifyConfig, validator *httpvalidator.Validator, c *contract.Contract, result *brokerapi.VerificationResult) (passed, failed int) {
 	for i := range c.Interactions {
 		interaction := &c.Interactions[i]
 		if interaction.Protocol != contract.ProtocolHTTP || interaction.Payload.HTTP == nil {
@@ -151,25 +151,25 @@ func verifyInteractions(ctx context.Context, cfg *verifyConfig, validator *httpv
 	return passed, failed
 }
 
-func verifyInteraction(ctx context.Context, providerURL string, validator *httpvalidator.Validator, interaction *contract.Interaction, rules contract.MatchingRules) api.InteractionResult {
+func verifyInteraction(ctx context.Context, providerURL string, validator *httpvalidator.Validator, interaction *contract.Interaction, rules contract.MatchingRules) brokerapi.InteractionResult {
 	fmt.Printf("\n  Testing: %s...", interaction.Description)
 	start := time.Now()
 
 	resp, err := validator.ExecuteInteraction(ctx, providerURL, interaction)
 	if err != nil {
 		fmt.Printf(" ERROR: %v\n", err)
-		return api.InteractionResult{
+		return brokerapi.InteractionResult{
 			ID:          interaction.ID,
 			Description: interaction.Description,
 			Success:     false,
 			DurationMS:  time.Since(start).Milliseconds(),
-			Errors:      []api.InteractionError{{Message: err.Error()}},
+			Errors:      []brokerapi.InteractionError{{Message: err.Error()}},
 		}
 	}
 	defer resp.Body.Close()
 
 	validationResult := validator.ValidateResponse(interaction, resp, rules)
-	interactionResult := api.InteractionResult{
+	interactionResult := brokerapi.InteractionResult{
 		ID:          interaction.ID,
 		Description: interaction.Description,
 		Success:     validationResult.Success,
@@ -182,7 +182,7 @@ func verifyInteraction(ctx context.Context, providerURL string, validator *httpv
 		fmt.Printf(" FAILED\n")
 		for _, e := range validationResult.Errors {
 			fmt.Printf("    - %s: %s\n", e.Path, e.Message)
-			interactionResult.Errors = append(interactionResult.Errors, api.InteractionError{
+			interactionResult.Errors = append(interactionResult.Errors, brokerapi.InteractionError{
 				Path:     e.Path,
 				Expected: e.Expected,
 				Actual:   e.Actual,
@@ -195,7 +195,7 @@ func verifyInteraction(ctx context.Context, providerURL string, validator *httpv
 	return interactionResult
 }
 
-func publishVerificationResults(ctx context.Context, brokerURL string, result *api.VerificationResult) {
+func publishVerificationResults(ctx context.Context, brokerURL string, result *brokerapi.VerificationResult) {
 	data, err := json.Marshal(result)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to marshal results: %v\n", err)

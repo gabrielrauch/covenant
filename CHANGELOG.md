@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2025-12-23
+
+### Added
+- New `pkg/pathutil` package for secure file path handling
+- Secure file operation wrappers: `SecureOpen`, `SecureCreate`, `SecureReadFile`, `ReadValidated`
+
+### Changed
+- Renamed packages to follow Go naming conventions:
+  - `examples/async_example` → `asyncexample`
+  - `examples/grpc_example` → `grpcexample`
+  - `examples/http_example` → `httpexample`
+  - `pkg/broker/api` → `pkg/broker/brokerapi`
+  - `pkg/validator/common` → `pkg/validator/validation`
+  - `pkg/validator/http` → `pkg/validator/httpvalidator` (avoids stdlib conflict)
+- Improved error handling: all type assertions and `json.Marshal` calls now check errors
+- Added context support to PostgreSQL operations (`PingContext`, `ExecContext`)
+- Used `net.ListenConfig` for context-aware network listeners
+- Replaced `nil` request body with `http.NoBody` for clarity
+- Pre-allocated slices where capacity is known
+
+### Fixed
+- All 48 golangci-lint issues resolved
+- Directory permissions changed from 0755 to 0750 (G301)
+- Path traversal protection via centralized `pathutil` package (G304)
+- Import grouping with local-prefix for goimports
+
+### Security
+- Centralized file operations in `pkg/pathutil` with path validation
+- All file open/create/read operations now go through secure wrappers
+- Path traversal attacks prevented by validating paths before file operations
+
 ## [0.3.1] - 2025-12-22
 
 ### Changed

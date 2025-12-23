@@ -65,7 +65,7 @@ func Fetch(ctx context.Context, args []string) error {
 	}
 
 	// Create output directory
-	if err := os.MkdirAll(*outDir, 0755); err != nil {
+	if err := os.MkdirAll(*outDir, 0750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 

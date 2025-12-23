@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "5ffec928-66e8-4495-9a99-c69fa42e2ad1",
+    "id": "15c5368c-a1c7-4cee-bd77-de9c4f4461c9",
     "version": "1.0.0",
     "consumer": {
       "name": "inventory-service"
@@ -9,7 +9,7 @@
       "name": "orders-service"
     },
     "status": "draft",
-    "created_at": "2025-12-23T00:12:56.765054Z"
+    "created_at": "2025-12-23T03:20:41.219286Z"
   },
   "interactions": [
     {

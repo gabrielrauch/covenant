@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gabrielrauch/covenant/pkg/broker/api"
+	"github.com/gabrielrauch/covenant/pkg/broker/brokerapi"
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	httpvalidator "github.com/gabrielrauch/covenant/pkg/validator/http"
 )
@@ -67,7 +67,7 @@ type VerificationReport struct {
 	ProviderVersion string
 	VerifiedAt      time.Time
 	Success         bool
-	Results         []api.VerificationResult
+	Results         []brokerapi.VerificationResult
 }
 
 // Verify verifies the provider against all loaded contracts.
@@ -108,14 +108,14 @@ func (v *Verifier) Verify(ctx context.Context, opts VerificationOptions) (*Verif
 }
 
 // verifyContract verifies a single contract.
-func (v *Verifier) verifyContract(ctx context.Context, c *contract.Contract, opts VerificationOptions) api.VerificationResult {
+func (v *Verifier) verifyContract(ctx context.Context, c *contract.Contract, opts VerificationOptions) brokerapi.VerificationResult {
 	start := time.Now()
 
-	result := api.VerificationResult{
+	result := brokerapi.VerificationResult{
 		ContractID:      c.Metadata.ID,
 		ContractVersion: c.Metadata.Version,
-		Provider:        api.ServiceVersion{Name: v.providerName, Version: v.providerVersion},
-		Consumer:        api.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
+		Provider:        brokerapi.ServiceVersion{Name: v.providerName, Version: v.providerVersion},
+		Consumer:        brokerapi.ServiceVersion{Name: c.Metadata.Consumer.Name, Version: c.Metadata.Consumer.Version},
 		VerifiedAt:      time.Now().UTC(),
 	}
 
@@ -141,10 +141,10 @@ func (v *Verifier) verifyContract(ctx context.Context, c *contract.Contract, opt
 }
 
 // verifyInteraction verifies a single interaction.
-func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules, _ VerificationOptions) api.InteractionResult {
+func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules, _ VerificationOptions) brokerapi.InteractionResult {
 	start := time.Now()
 
-	result := api.InteractionResult{
+	result := brokerapi.InteractionResult{
 		ID:          interaction.ID,
 		Description: interaction.Description,
 		Success:     true,
@@ -155,7 +155,7 @@ func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.
 		handler, ok := v.stateHandlers[state.Name]
 		if !ok {
 			result.Success = false
-			result.Errors = append(result.Errors, api.InteractionError{
+			result.Errors = append(result.Errors, brokerapi.InteractionError{
 				Message: fmt.Sprintf("no handler for provider state: %s", state.Name),
 			})
 			result.DurationMS = time.Since(start).Milliseconds()
@@ -164,7 +164,7 @@ func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.
 
 		if err := handler(state); err != nil {
 			result.Success = false
-			result.Errors = append(result.Errors, api.InteractionError{
+			result.Errors = append(result.Errors, brokerapi.InteractionError{
 				Message: fmt.Sprintf("state setup failed for %s: %v", state.Name, err),
 			})
 			result.DurationMS = time.Since(start).Milliseconds()
@@ -180,7 +180,7 @@ func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.
 		result.Errors = httpResult.Errors
 	default:
 		result.Success = false
-		result.Errors = append(result.Errors, api.InteractionError{
+		result.Errors = append(result.Errors, brokerapi.InteractionError{
 			Message: fmt.Sprintf("unsupported protocol: %s", interaction.Protocol),
 		})
 	}
@@ -190,8 +190,8 @@ func (v *Verifier) verifyInteraction(ctx context.Context, interaction *contract.
 }
 
 // verifyHTTPInteraction verifies an HTTP interaction.
-func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules) api.InteractionResult {
-	result := api.InteractionResult{
+func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction *contract.Interaction, contractRules contract.MatchingRules) brokerapi.InteractionResult {
+	result := brokerapi.InteractionResult{
 		ID:          interaction.ID,
 		Description: interaction.Description,
 		Success:     true,
@@ -201,7 +201,7 @@ func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction *contr
 	resp, err := v.httpValidator.ExecuteInteraction(ctx, v.baseURL, interaction)
 	if err != nil {
 		result.Success = false
-		result.Errors = append(result.Errors, api.InteractionError{
+		result.Errors = append(result.Errors, brokerapi.InteractionError{
 			Message: fmt.Sprintf("request failed: %v", err),
 		})
 		return result
@@ -213,7 +213,7 @@ func (v *Verifier) verifyHTTPInteraction(ctx context.Context, interaction *contr
 	if !validationResult.Success {
 		result.Success = false
 		for _, err := range validationResult.Errors {
-			result.Errors = append(result.Errors, api.InteractionError{
+			result.Errors = append(result.Errors, brokerapi.InteractionError{
 				Path:     err.Path,
 				Expected: err.Expected,
 				Actual:   err.Actual,

@@ -1,4 +1,4 @@
-package http_example
+package httpexample
 
 import (
 	"encoding/json"
@@ -36,7 +36,7 @@ func (api *OrdersAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (api *OrdersAPI) handleGetOrder(w http.ResponseWriter, r *http.Request, id string) {
+func (api *OrdersAPI) handleGetOrder(w http.ResponseWriter, _ *http.Request, id string) {
 	order, ok := api.orders[id]
 	if !ok {
 		http.Error(w, "order not found", http.StatusNotFound)
@@ -44,7 +44,10 @@ func (api *OrdersAPI) handleGetOrder(w http.ResponseWriter, r *http.Request, id 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(order)
+	if err := json.NewEncoder(w).Encode(order); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (api *OrdersAPI) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +55,10 @@ func (api *OrdersAPI) handleCreateOrder(w http.ResponseWriter, r *http.Request) 
 	var req struct {
 		Items []map[string]any `json:"items"`
 	}
-	json.NewDecoder(r.Body).Decode(&req)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
 
 	// Build response with items echoed back
 	response := map[string]any{
@@ -63,7 +69,10 @@ func (api *OrdersAPI) handleCreateOrder(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		// Status already written, just log internally
+		_ = err
+	}
 }
 
 // AddOrder adds an order to the API (for state setup).
@@ -81,12 +90,15 @@ func TestProviderVerification(t *testing.T) {
 	defer server.Close()
 
 	// Load contracts from directory
-	contractFiles, _ := filepath.Glob("./contracts/*.json")
+	contractFiles, err := filepath.Glob("./contracts/*.json")
+	if err != nil {
+		t.Fatalf("Failed to glob contract files: %v", err)
+	}
 	if len(contractFiles) == 0 {
 		t.Skip("No contract files found - run consumer tests first")
 	}
 
-	var contracts []*contract.Contract
+	contracts := make([]*contract.Contract, 0, len(contractFiles))
 	for _, file := range contractFiles {
 		c, err := contract.LoadFromFile(file)
 		if err != nil {
@@ -105,10 +117,19 @@ func TestProviderVerification(t *testing.T) {
 
 	// Register state handlers
 	verifier.OnProviderState("order 123 exists", func(state contract.ProviderState) error {
-		// Extract parameters from state
-		id, _ := state.Params["id"].(string)
-		status, _ := state.Params["status"].(string)
-		total, _ := state.Params["total"].(float64)
+		// Extract parameters from state with defaults
+		id, ok := state.Params["id"].(string)
+		if !ok {
+			id = ""
+		}
+		status, ok := state.Params["status"].(string)
+		if !ok {
+			status = ""
+		}
+		total, ok := state.Params["total"].(float64)
+		if !ok {
+			total = 0
+		}
 
 		api.AddOrder(&Order{
 			ID:     id,

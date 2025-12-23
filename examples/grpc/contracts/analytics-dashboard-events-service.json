@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "afc7a119-2163-484a-bfc8-d7b4d53f62ee",
+    "id": "1e9443a0-e744-4454-8425-5e75bf0f7d1f",
     "version": "1.0.0",
     "consumer": {
       "name": "analytics-dashboard"
@@ -9,7 +9,7 @@
       "name": "events-service"
     },
     "status": "draft",
-    "created_at": "2025-12-23T00:12:56.929425Z"
+    "created_at": "2025-12-23T03:20:41.378681Z"
   },
   "interactions": [
     {

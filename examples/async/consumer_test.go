@@ -1,14 +1,15 @@
-// Package async_example demonstrates async messaging contract testing with covenant.
-package async_example
+// Package asyncexample demonstrates async messaging contract testing with covenant.
+package asyncexample
 
 import (
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	asyncvalidator "github.com/gabrielrauch/covenant/pkg/validator/async"
-	"github.com/google/uuid"
 )
 
 // OrderCreatedEvent represents an order created event.
@@ -115,7 +116,10 @@ func TestOrderCreatedEvent_Consumer(t *testing.T) {
 			{SKU: "GADGET-001", Name: "Gadget", Quantity: 1, Price: 149.99},
 		},
 	}
-	eventBytes, _ := json.Marshal(event)
+	eventBytes, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("Failed to marshal event: %v", err)
+	}
 
 	headers := map[string]string{
 		"content-type": "application/json",
@@ -229,35 +233,44 @@ func TestPaymentSaga_Consumer(t *testing.T) {
 	// Simulate saga message flow
 
 	// Step 1: Payment process request
-	msg1, _ := json.Marshal(map[string]any{
+	msg1, err := json.Marshal(map[string]any{
 		"order_id": "ord-001",
 		"amount":   100.00,
 		"currency": "USD",
 	})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg1: %v", err)
+	}
 	seqValidator.ValidateNext("payments.process", msg1, map[string]string{
 		"correlation-id": "saga-123",
 	})
 
 	// Check captured values
 	captured := seqValidator.Captured()
-	if orderId, ok := captured["order_id"].(string); ok {
-		t.Logf("Captured order_id: %s", orderId)
+	if orderID, ok := captured["order_id"].(string); ok {
+		t.Logf("Captured order_id: %s", orderID)
 	}
 
 	// Step 2: Payment confirmed
-	msg2, _ := json.Marshal(map[string]any{
+	msg2, err := json.Marshal(map[string]any{
 		"order_id":     "ord-001",
 		"payment_id":   "pay-xyz",
 		"status":       "confirmed",
 		"processed_at": "2025-01-01T12:00:00Z",
 	})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg2: %v", err)
+	}
 	seqValidator.ValidateNext("payments.confirmed", msg2, nil)
 
 	// Step 3: Order marked as paid
-	msg3, _ := json.Marshal(map[string]any{
+	msg3, err := json.Marshal(map[string]any{
 		"order_id": "ord-001",
 		"status":   "paid",
 	})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg3: %v", err)
+	}
 	seqValidator.ValidateNext("orders.paid", msg3, nil)
 
 	// Get final result

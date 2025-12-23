@@ -87,7 +87,7 @@ func (p *Pact) Verify() error {
 	}
 
 	// Save contracts
-	if err := os.MkdirAll(p.outDir, 0755); err != nil {
+	if err := os.MkdirAll(p.outDir, 0750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 

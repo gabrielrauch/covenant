@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "id": "6e297e13-c223-4117-bb5a-afcd32c97997",
+    "id": "47413d5b-3c9b-46d2-84aa-e624962d6529",
     "version": "1.0.0",
     "consumer": {
       "name": "payment-service"
@@ -9,7 +9,7 @@
       "name": "order-orchestrator"
     },
     "status": "draft",
-    "created_at": "2025-12-23T00:12:56.765484Z"
+    "created_at": "2025-12-23T03:20:41.220801Z"
   },
   "interactions": [
     {

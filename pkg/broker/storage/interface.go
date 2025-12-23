@@ -45,6 +45,7 @@ type Operation struct {
 // OperationType represents the type of operation.
 type OperationType string
 
+// Operation type constants for storage events.
 const (
 	OpSave   OperationType = "save"
 	OpDelete OperationType = "delete"

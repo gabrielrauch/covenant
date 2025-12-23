@@ -1,7 +1,8 @@
-// Package http_example demonstrates consumer-driven contract testing with covenant.
-package http_example
+// Package httpexample demonstrates consumer-driven contract testing with covenant.
+package httpexample
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,15 +27,22 @@ type Order struct {
 }
 
 // GetOrder fetches an order by ID.
-func (c *OrderClient) GetOrder(id string) (*Order, error) {
-	resp, err := c.client.Get(fmt.Sprintf("%s/orders/%s", c.baseURL, id))
+func (c *OrderClient) GetOrder(ctx context.Context, id string) (*Order, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/orders/%s", c.baseURL, id), http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("unexpected status %d (failed to read body: %v)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -77,7 +85,7 @@ func TestGetOrder_Consumer(t *testing.T) {
 			}
 
 			// Execute the actual consumer code
-			order, err := client.GetOrder("123")
+			order, err := client.GetOrder(context.Background(), "123")
 			if err != nil {
 				t.Fatalf("Failed to get order: %v", err)
 			}
@@ -126,11 +134,12 @@ func TestCreateOrder_Consumer(t *testing.T) {
 			body := `{"items": [{"sku": "WIDGET-1", "quantity": 2}]}`
 
 			// Test the actual HTTP call
-			resp, err := http.Post(
-				mockURL+"/orders",
-				"application/json",
-				strings.NewReader(body),
-			)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, mockURL+"/orders", strings.NewReader(body))
+			if err != nil {
+				t.Fatalf("Failed to create request: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatalf("Failed to create order: %v", err)
 			}

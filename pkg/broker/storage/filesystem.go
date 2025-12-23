@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/gabrielrauch/covenant/pkg/pathutil"
 )
 
 // FilesystemBackend implements the Backend interface using the local filesystem.
@@ -18,7 +20,7 @@ type FilesystemBackend struct {
 // NewFilesystemBackend creates a new filesystem storage backend.
 func NewFilesystemBackend(rootDir string) (*FilesystemBackend, error) {
 	// Ensure root directory exists
-	if err := os.MkdirAll(rootDir, 0755); err != nil {
+	if err := os.MkdirAll(rootDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create root directory: %w", err)
 	}
 
@@ -39,7 +41,7 @@ func (fs *FilesystemBackend) Save(ctx context.Context, key string, data []byte) 
 
 	// Create parent directories
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
@@ -68,7 +70,7 @@ func (fs *FilesystemBackend) Load(ctx context.Context, key string) ([]byte, erro
 		return nil, err
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := pathutil.ReadValidated(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrNotFound
@@ -230,7 +232,7 @@ func (fs *FilesystemBackend) prepareSingleSave(op Operation) (pendingSave, error
 	}
 
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return pendingSave{}, fmt.Errorf("failed to create directory for %s: %w", op.Key, err)
 	}
 
@@ -298,22 +300,13 @@ func (fs *FilesystemBackend) keyToPath(key string) (string, error) {
 	cleanKey := strings.TrimPrefix(key, "/")
 	resolvedPath := filepath.Join(fs.rootDir, filepath.FromSlash(cleanKey))
 
-	// Verify the resolved path is within rootDir
-	absRoot, err := filepath.Abs(fs.rootDir)
+	// Verify the resolved path is within rootDir using pathutil
+	validPath, err := pathutil.ValidateWithinRoot(fs.rootDir, resolvedPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve root directory: %w", err)
-	}
-	absPath, err := filepath.Abs(resolvedPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve path: %w", err)
-	}
-
-	// Check that the resolved path starts with the root directory
-	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) && absPath != absRoot {
 		return "", ErrInvalidKey
 	}
 
-	return resolvedPath, nil
+	return validPath, nil
 }
 
 // cleanEmptyDirs removes empty parent directories up to rootDir.

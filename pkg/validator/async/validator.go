@@ -9,7 +9,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
-	"github.com/gabrielrauch/covenant/pkg/validator/common"
+	"github.com/gabrielrauch/covenant/pkg/validator/validation"
 )
 
 // Validator implements async message validation.
@@ -32,11 +32,11 @@ func (v *Validator) Validate(ctx context.Context, interaction *contract.Interact
 	payload := interaction.Payload.Async
 
 	// Validate message headers
-	headerErrors := common.ValidateHeaders(
+	headerErrors := validation.ValidateHeaders(
 		payload.Message.Headers,
 		actual.Metadata,
 		interaction.MatchingRules,
-		common.DefaultAsyncHeaderConfig("$.message.headers"),
+		validation.DefaultAsyncHeaderConfig("$.message.headers"),
 	)
 	for i := range headerErrors {
 		result.AddError(&headerErrors[i])
@@ -67,11 +67,11 @@ func (v *Validator) ValidateMessage(interaction *contract.Interaction, message [
 	expected := interaction.Payload.Async.Message
 
 	// Validate headers
-	headerErrors := common.ValidateHeaders(
+	headerErrors := validation.ValidateHeaders(
 		expected.Headers,
 		headers,
 		interaction.MatchingRules,
-		common.DefaultAsyncHeaderConfig("$.message.headers"),
+		validation.DefaultAsyncHeaderConfig("$.message.headers"),
 	)
 	for i := range headerErrors {
 		result.AddError(&headerErrors[i])

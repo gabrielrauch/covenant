@@ -1,5 +1,5 @@
-// Package http provides HTTP protocol validation for contract testing.
-package http
+// Package httpvalidator provides HTTP protocol validation for contract testing.
+package httpvalidator
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
 	"github.com/gabrielrauch/covenant/pkg/validator"
-	"github.com/gabrielrauch/covenant/pkg/validator/common"
+	"github.com/gabrielrauch/covenant/pkg/validator/validation"
 )
 
 // MaxBodySize is the maximum size of request/response bodies to read (10MB default).
@@ -64,11 +64,11 @@ func (v *Validator) Validate(ctx context.Context, interaction *contract.Interact
 	}
 
 	// Validate response headers
-	headerErrors := common.ValidateHeaders(
+	headerErrors := validation.ValidateHeaders(
 		payload.Response.Headers,
 		actual.Metadata,
 		interaction.MatchingRules,
-		common.DefaultHTTPHeaderConfig("$.response.headers"),
+		validation.DefaultHTTPHeaderConfig("$.response.headers"),
 	)
 	for i := range headerErrors {
 		result.AddError(&headerErrors[i])
@@ -144,11 +144,11 @@ func (v *Validator) ValidateRequest(interaction *contract.Interaction, req *http
 				actualHeaders[strings.ToLower(key)] = values[0]
 			}
 		}
-		headerErrors := common.ValidateHeaders(
+		headerErrors := validation.ValidateHeaders(
 			expected.Headers,
 			actualHeaders,
 			interaction.MatchingRules,
-			common.DefaultHTTPHeaderConfig("$.request.headers"),
+			validation.DefaultHTTPHeaderConfig("$.request.headers"),
 		)
 		for i := range headerErrors {
 			result.AddError(&headerErrors[i])

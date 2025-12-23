@@ -21,6 +21,7 @@ const (
 // Protocol represents the communication protocol type.
 type Protocol string
 
+// Protocol constants for supported communication protocols.
 const (
 	ProtocolHTTP  Protocol = "http"
 	ProtocolGRPC  Protocol = "grpc"
@@ -124,6 +125,7 @@ type GRPCResponse struct {
 // StreamType represents the type of gRPC streaming.
 type StreamType string
 
+// StreamType constants for gRPC streaming modes.
 const (
 	StreamTypeUnary         StreamType = "unary"
 	StreamTypeServerStream  StreamType = "server_stream"
@@ -140,6 +142,7 @@ type StreamMessage struct {
 // StreamDirection indicates the direction of a stream message.
 type StreamDirection string
 
+// StreamDirection constants for message flow direction.
 const (
 	StreamDirectionClient StreamDirection = "client"
 	StreamDirectionServer StreamDirection = "server"
@@ -156,6 +159,7 @@ type AsyncPayload struct {
 // AsyncDirection indicates whether a service publishes or consumes messages.
 type AsyncDirection string
 
+// AsyncDirection constants for async messaging roles.
 const (
 	AsyncDirectionPublish AsyncDirection = "publish"
 	AsyncDirectionConsume AsyncDirection = "consume"
@@ -199,6 +203,7 @@ type MatchingRule struct {
 // MatchType represents the type of matching to perform.
 type MatchType string
 
+// MatchType constants for contract matching strategies.
 const (
 	MatchExact     MatchType = "exact"
 	MatchTypeValue MatchType = "type"

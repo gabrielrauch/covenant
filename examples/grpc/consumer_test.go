@@ -1,5 +1,5 @@
-// Package grpc_example demonstrates gRPC consumer-driven contract testing with covenant.
-package grpc_example
+// Package grpcexample demonstrates gRPC consumer-driven contract testing with covenant.
+package grpcexample
 
 import (
 	"context"
@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	grpcvalidator "github.com/gabrielrauch/covenant/pkg/validator/grpc"
-	"github.com/google/uuid"
 )
 
 // User represents a user in the system.
@@ -94,13 +95,20 @@ func TestGetUser_Consumer(t *testing.T) {
 	if err := mockServer.Start(); err != nil {
 		t.Fatalf("Failed to start mock server: %v", err)
 	}
-	defer mockServer.Stop()
+	defer func() {
+		if err := mockServer.Stop(); err != nil {
+			t.Errorf("Failed to stop mock server: %v", err)
+		}
+	}()
 
 	t.Logf("Mock server running at: %s", mockServer.Address())
 
 	// Simulate calling the gRPC service
 	// In a real scenario, this would be your actual gRPC client code
-	requestPayload, _ := json.Marshal(map[string]any{"id": "123"})
+	requestPayload, err := json.Marshal(map[string]any{"id": "123"})
+	if err != nil {
+		t.Fatalf("Failed to marshal request: %v", err)
+	}
 	metadata := map[string]string{"authorization": "Bearer token123"}
 
 	// Handle the unary call through the mock
@@ -206,12 +214,19 @@ func TestStreamEvents_Consumer(t *testing.T) {
 	if err := mockServer.Start(); err != nil {
 		t.Fatalf("Failed to start mock server: %v", err)
 	}
-	defer mockServer.Stop()
+	defer func() {
+		if err := mockServer.Stop(); err != nil {
+			t.Errorf("Failed to stop mock server: %v", err)
+		}
+	}()
 
-	requestPayload, _ := json.Marshal(map[string]any{
+	requestPayload, err := json.Marshal(map[string]any{
 		"user_id": "user-456",
 		"limit":   10,
 	})
+	if err != nil {
+		t.Fatalf("Failed to marshal request: %v", err)
+	}
 
 	// Initiate server streaming call
 	handler, err := mockServer.HandleServerStreamCall(
@@ -311,7 +326,11 @@ func TestBidirectionalStream_Consumer(t *testing.T) {
 	if err := mockServer.Start(); err != nil {
 		t.Fatalf("Failed to start mock server: %v", err)
 	}
-	defer mockServer.Stop()
+	defer func() {
+		if err := mockServer.Stop(); err != nil {
+			t.Errorf("Failed to stop mock server: %v", err)
+		}
+	}()
 
 	// Initiate bidirectional stream
 	handler, err := mockServer.HandleBidiStreamCall(
@@ -325,7 +344,10 @@ func TestBidirectionalStream_Consumer(t *testing.T) {
 	}
 
 	// Send first client message
-	msg1, _ := json.Marshal(map[string]any{"text": "Hello", "user": "alice"})
+	msg1, err := json.Marshal(map[string]any{"text": "Hello", "user": "alice"})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg1: %v", err)
+	}
 	handler.Send(msg1, nil)
 
 	// Receive server response
@@ -336,7 +358,10 @@ func TestBidirectionalStream_Consumer(t *testing.T) {
 	t.Logf("Server response 1: %s", string(resp1))
 
 	// Send second client message
-	msg2, _ := json.Marshal(map[string]any{"text": "How are you?", "user": "alice"})
+	msg2, err := json.Marshal(map[string]any{"text": "How are you?", "user": "alice"})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg2: %v", err)
+	}
 	handler.Send(msg2, nil)
 
 	// Receive second server response

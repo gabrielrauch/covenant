@@ -101,13 +101,13 @@ Protocol-specific validation engines:
     │               pkg/validator                      │
     ├──────────────────────────────────────────────────┤
     │                                                  │
-    │   ╭──────────╮  ╭──────────╮  ╭──────────╮       │
-    │   │  common  │  │   http   │  │   grpc   │       │
-    │   │          │  │          │  │          │       │
-    │   │ Headers  │  │ Request  │  │ Unary    │       │
-    │   │ Shared   │  │ Response │  │ Stream   │       │
-    │   │ Utils    │  │ Mock     │  │ Mock     │       │
-    │   ╰──────────╯  ╰──────────╯  ╰──────────╯       │
+    │   ╭────────────╮  ╭──────────╮  ╭──────────╮     │
+    │   │ validation │  │   http   │  │   grpc   │     │
+    │   │            │  │          │  │          │     │
+    │   │  Headers   │  │ Request  │  │ Unary    │     │
+    │   │  Shared    │  │ Response │  │ Stream   │     │
+    │   │  Utils     │  │ Mock     │  │ Mock     │     │
+    │   ╰────────────╯  ╰──────────╯  ╰──────────╯     │
     │                                                  │
     │                 ╭──────────╮                     │
     │                 │  async   │                     │
@@ -387,10 +387,14 @@ covenant broker                 # Start broker server
           ├────────────▶ pkg/provider
           └────────────▶ pkg/contract
 
-    pkg/broker/api
+    pkg/broker/brokerapi
           │
           ├────────────▶ pkg/broker/storage
           └────────────▶ pkg/contract
+
+    pkg/broker/storage
+          │
+          └────────────▶ pkg/pathutil
 
     pkg/consumer
           │
@@ -410,6 +414,14 @@ covenant broker                 # Start broker server
     pkg/matching
           │
           └────────────▶ pkg/contract (types only)
+
+    pkg/contract
+          │
+          └────────────▶ pkg/pathutil
+
+    pkg/pathutil
+          │
+          └────────────▶ (no dependencies)
 ```
 
 ## Extension Points

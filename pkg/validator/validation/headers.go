@@ -1,5 +1,5 @@
-// Package common provides shared validation utilities across protocol validators.
-package common
+// Package validation provides shared validation utilities across protocol validators.
+package validation
 
 import (
 	"fmt"

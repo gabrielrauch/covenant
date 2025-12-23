@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gabrielrauch/covenant/pkg/broker/api"
+	"github.com/gabrielrauch/covenant/pkg/broker/brokerapi"
 	"github.com/gabrielrauch/covenant/pkg/broker/storage"
 	"github.com/gabrielrauch/covenant/pkg/contract"
 )
@@ -17,18 +17,18 @@ import (
 // Server is the contract broker HTTP server.
 type Server struct {
 	storage       storage.Backend
-	contracts     *api.ContractService
-	verifications *api.VerificationService
-	deploy        *api.DeployService
+	contracts     *brokerapi.ContractService
+	verifications *brokerapi.VerificationService
+	deploy        *brokerapi.DeployService
 
 	mux *http.ServeMux
 }
 
 // NewServer creates a new broker server.
 func NewServer(backend storage.Backend) *Server {
-	contracts := api.NewContractService(backend)
-	verifications := api.NewVerificationService(backend, contracts)
-	deploy := api.NewDeployService(contracts, verifications)
+	contracts := brokerapi.NewContractService(backend)
+	verifications := brokerapi.NewVerificationService(backend, contracts)
+	deploy := brokerapi.NewDeployService(contracts, verifications)
 
 	s := &Server{
 		storage:       backend,
@@ -94,7 +94,7 @@ func (s *Server) handlePublishContract(w http.ResponseWriter, r *http.Request) {
 
 // handleListContracts lists contracts with optional filters.
 func (s *Server) handleListContracts(w http.ResponseWriter, r *http.Request) {
-	filter := api.ContractFilter{
+	filter := brokerapi.ContractFilter{
 		Consumer: r.URL.Query().Get("consumer"),
 		Provider: r.URL.Query().Get("provider"),
 		Tag:      r.URL.Query().Get("tag"),
@@ -211,7 +211,7 @@ func (s *Server) handleDeprecateContract(w http.ResponseWriter, r *http.Request)
 
 // handleRecordVerification records a verification result.
 func (s *Server) handleRecordVerification(w http.ResponseWriter, r *http.Request) {
-	var result api.VerificationResult
+	var result brokerapi.VerificationResult
 	if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
 		s.errorResponse(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return

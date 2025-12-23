@@ -1,6 +1,7 @@
-package grpc_example
+package grpcexample
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -81,7 +82,7 @@ func TestProviderVerification_GRPC(t *testing.T) {
 
 					switch grpcPayload.Method {
 					case "GetUser":
-						testGetUserInteraction(t, provider, grpcValidator, interaction)
+						testGetUserInteraction(t, provider, grpcValidator, &interaction)
 					case "StreamEvents":
 						t.Log("Server streaming test would go here")
 					case "Chat":
@@ -97,11 +98,19 @@ func TestProviderVerification_GRPC(t *testing.T) {
 
 // setupProviderState sets up the provider state based on contract.
 func setupProviderState(provider *UserServiceProvider, state contract.ProviderState) {
-	switch state.Name {
-	case "user 123 exists":
-		id, _ := state.Params["id"].(string)
-		name, _ := state.Params["name"].(string)
-		email, _ := state.Params["email"].(string)
+	if state.Name == "user 123 exists" {
+		id, ok := state.Params["id"].(string)
+		if !ok {
+			id = ""
+		}
+		name, ok := state.Params["name"].(string)
+		if !ok {
+			name = ""
+		}
+		email, ok := state.Params["email"].(string)
+		if !ok {
+			email = ""
+		}
 		provider.AddUser(&User{
 			ID:    id,
 			Name:  name,
@@ -111,7 +120,7 @@ func setupProviderState(provider *UserServiceProvider, state contract.ProviderSt
 }
 
 // testGetUserInteraction tests the GetUser RPC against the contract.
-func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpcvalidator.Validator, interaction contract.Interaction) {
+func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpcvalidator.Validator, interaction *contract.Interaction) {
 	grpcPayload := interaction.Payload.GRPC
 
 	// Parse the expected request to get the user ID
@@ -120,7 +129,10 @@ func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpc
 		t.Fatal("Invalid request message format")
 	}
 
-	userID, _ := requestMsg["id"].(string)
+	userID, ok := requestMsg["id"].(string)
+	if !ok {
+		t.Fatal("request message missing 'id' field")
+	}
 
 	// Execute the actual provider logic
 	user, err := provider.GetUser(userID)
@@ -133,7 +145,10 @@ func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpc
 	}
 
 	// Build actual response
-	responseBytes, _ := json.Marshal(user)
+	responseBytes, err := json.Marshal(user)
+	if err != nil {
+		t.Fatalf("Failed to marshal user: %v", err)
+	}
 
 	// Validate response against contract
 	actual := validator.ActualData{
@@ -142,7 +157,7 @@ func testGetUserInteraction(t *testing.T, provider *UserServiceProvider, v *grpc
 		Response: responseBytes,
 	}
 
-	result := v.Validate(nil, &interaction, actual)
+	result := v.Validate(context.Background(), interaction, actual)
 
 	if !result.Success {
 		for _, err := range result.Errors {
@@ -165,7 +180,10 @@ func TestProviderRequestValidation(t *testing.T) {
 
 	// Simulate an incoming request from consumer
 	validRequest := map[string]any{"id": "123"}
-	validRequestBytes, _ := json.Marshal(validRequest)
+	validRequestBytes, err := json.Marshal(validRequest)
+	if err != nil {
+		t.Fatalf("Failed to marshal valid request: %v", err)
+	}
 	validMetadata := map[string]string{"authorization": "Bearer token123"}
 
 	// Validate the request
@@ -225,9 +243,18 @@ func TestStreamValidation(t *testing.T) {
 	sv := grpcvalidator.NewStreamValidator(&interaction)
 
 	// Simulate receiving client messages
-	msg1, _ := json.Marshal(map[string]any{"value": 10})
-	msg2, _ := json.Marshal(map[string]any{"value": 20})
-	msg3, _ := json.Marshal(map[string]any{"value": 30})
+	msg1, err := json.Marshal(map[string]any{"value": 10})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg1: %v", err)
+	}
+	msg2, err := json.Marshal(map[string]any{"value": 20})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg2: %v", err)
+	}
+	msg3, err := json.Marshal(map[string]any{"value": 30})
+	if err != nil {
+		t.Fatalf("Failed to marshal msg3: %v", err)
+	}
 
 	sv.ValidateClientMessage(msg1, nil)
 	sv.ValidateClientMessage(msg2, nil)
