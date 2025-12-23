@@ -113,7 +113,9 @@ dockers:
   - image_templates:
       - "ghcr.io/gabrielrauch/covenant:{{ .Version }}"
       - "ghcr.io/gabrielrauch/covenant:latest"
-    dockerfile: Dockerfile
+    dockerfile: Dockerfile.goreleaser
+    goos: linux
+    goarch: amd64
     build_flag_templates:
       - "--label=org.opencontainers.image.title={{ .ProjectName }}"
       - "--label=org.opencontainers.image.version={{ .Version }}"
