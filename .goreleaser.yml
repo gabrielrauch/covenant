@@ -103,7 +103,7 @@ brews:
     homepage: https://github.com/gabrielrauch/covenant
     description: Consumer-driven contract testing for Go
     license: MIT
-    skip_upload: auto
+    skip_upload: true  # Enable when HOMEBREW_TAP_TOKEN is configured
     test: |
       system "#{bin}/covenant", "--version"
     install: |
