@@ -257,8 +257,8 @@ func (s *ContractService) Untag(ctx context.Context, contractID string, tags []s
 		removeTags[t] = true
 	}
 
-	// Filter out removed tags
-	var newTags []string
+	// Filter out removed tags with pre-allocated slice
+	newTags := make([]string, 0, len(c.Metadata.Tags))
 	for _, t := range c.Metadata.Tags {
 		if !removeTags[t] {
 			newTags = append(newTags, t)

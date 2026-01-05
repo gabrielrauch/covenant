@@ -21,6 +21,18 @@ import (
 // MaxBodySize is the maximum size of request/response bodies to read (10MB default).
 const MaxBodySize = 10 * 1024 * 1024
 
+// normalizeHeaders creates a case-insensitive header lookup map.
+// Only stores lowercase keys to reduce memory allocation.
+func normalizeHeaders(headers http.Header) map[string]string {
+	result := make(map[string]string, len(headers))
+	for key, values := range headers {
+		if len(values) > 0 {
+			result[strings.ToLower(key)] = values[0]
+		}
+	}
+	return result
+}
+
 // defaultClient is a pre-configured HTTP client with connection pooling limits.
 var defaultClient = &http.Client{
 	Timeout: 30 * time.Second,
@@ -149,13 +161,7 @@ func (v *Validator) ValidateRequest(interaction *contract.Interaction, req *http
 
 	// Validate headers
 	if len(expected.Headers) > 0 {
-		actualHeaders := make(map[string]string)
-		for key, values := range req.Header {
-			if len(values) > 0 {
-				actualHeaders[key] = values[0]
-				actualHeaders[strings.ToLower(key)] = values[0]
-			}
-		}
+		actualHeaders := normalizeHeaders(req.Header)
 		headerErrors := validation.ValidateHeaders(
 			expected.Headers,
 			actualHeaders,
@@ -334,14 +340,8 @@ func (v *Validator) ValidateResponse(interaction *contract.Interaction, resp *ht
 	}
 	resp.Body = io.NopCloser(bytes.NewReader(bodyBytes)) // Reset body
 
-	// Build metadata from headers
-	metadata := make(map[string]string)
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			metadata[key] = values[0]
-			metadata[strings.ToLower(key)] = values[0]
-		}
-	}
+	// Build metadata from headers using normalized lookup
+	metadata := normalizeHeaders(resp.Header)
 
 	// Merge contract-level rules with interaction-level rules
 	mergedRules := make(contract.MatchingRules)

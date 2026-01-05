@@ -4,15 +4,64 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
+	"time"
 
 	"github.com/gabrielrauch/covenant/pkg/broker/storage"
 	"github.com/gabrielrauch/covenant/pkg/contract"
 )
 
+// DefaultMatrixCacheTTL is the default cache TTL for deployment matrices.
+const DefaultMatrixCacheTTL = 30 * time.Second
+
 // DeployService handles deployment safety checks.
 type DeployService struct {
 	contracts     *ContractService
 	verifications *VerificationService
+	cache         *matrixCache
+	cacheTTL      time.Duration
+}
+
+// matrixCache provides thread-safe caching for deployment matrices.
+type matrixCache struct {
+	mu      sync.RWMutex
+	entries map[string]*matrixCacheEntry
+}
+
+// matrixCacheEntry holds a cached matrix with expiration.
+type matrixCacheEntry struct {
+	matrix  *Matrix
+	expires time.Time
+}
+
+// newMatrixCache creates a new matrix cache.
+func newMatrixCache() *matrixCache {
+	return &matrixCache{
+		entries: make(map[string]*matrixCacheEntry),
+	}
+}
+
+// get retrieves a cached matrix if it exists and hasn't expired.
+func (c *matrixCache) get(key string) (*Matrix, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, ok := c.entries[key]
+	if !ok || time.Now().After(entry.expires) {
+		return nil, false
+	}
+	return entry.matrix, true
+}
+
+// set stores a matrix in the cache with the given TTL.
+func (c *matrixCache) set(key string, matrix *Matrix, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.entries[key] = &matrixCacheEntry{
+		matrix:  matrix,
+		expires: time.Now().Add(ttl),
+	}
 }
 
 // NewDeployService creates a new deploy service.
@@ -20,7 +69,16 @@ func NewDeployService(contracts *ContractService, verifications *VerificationSer
 	return &DeployService{
 		contracts:     contracts,
 		verifications: verifications,
+		cache:         newMatrixCache(),
+		cacheTTL:      DefaultMatrixCacheTTL,
 	}
+}
+
+// WithCacheTTL sets a custom cache TTL for deployment matrices.
+// Setting to 0 disables caching.
+func (s *DeployService) WithCacheTTL(ttl time.Duration) *DeployService {
+	s.cacheTTL = ttl
+	return s
 }
 
 // CanDeployResult contains the result of a can-deploy check.
@@ -235,7 +293,16 @@ type pairKey struct {
 }
 
 // GetMatrix returns a compatibility matrix for the given services.
+// Results are cached for the configured TTL (default 30s).
 func (s *DeployService) GetMatrix(ctx context.Context, consumer, provider string) (*Matrix, error) {
+	// Check cache first if caching is enabled
+	cacheKey := fmt.Sprintf("matrix:%s:%s", consumer, provider)
+	if s.cacheTTL > 0 {
+		if cached, ok := s.cache.get(cacheKey); ok {
+			return cached, nil
+		}
+	}
+
 	filter := ContractFilter{}
 	if consumer != "" {
 		filter.Consumer = consumer
@@ -254,15 +321,21 @@ func (s *DeployService) GetMatrix(ctx context.Context, consumer, provider string
 
 	matrix := &Matrix{
 		Services: services,
+		Cells:    make([][]MatrixCell, 0, len(services)),
 	}
 
 	for _, consumerSvc := range services {
-		var row []MatrixCell
+		row := make([]MatrixCell, 0, len(services))
 		for _, providerSvc := range services {
 			cell := s.buildMatrixCell(ctx, consumerSvc, providerSvc, pairs)
 			row = append(row, cell)
 		}
 		matrix.Cells = append(matrix.Cells, row)
+	}
+
+	// Cache the result if caching is enabled
+	if s.cacheTTL > 0 {
+		s.cache.set(cacheKey, matrix, s.cacheTTL)
 	}
 
 	return matrix, nil
