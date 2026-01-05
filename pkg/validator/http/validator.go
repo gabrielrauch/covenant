@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gabrielrauch/covenant/pkg/contract"
 	"github.com/gabrielrauch/covenant/pkg/matching"
@@ -20,6 +21,17 @@ import (
 // MaxBodySize is the maximum size of request/response bodies to read (10MB default).
 const MaxBodySize = 10 * 1024 * 1024
 
+// defaultClient is a pre-configured HTTP client with connection pooling limits.
+var defaultClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxConnsPerHost:     10,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
+
 // Validator implements HTTP protocol validation.
 type Validator struct {
 	client *http.Client
@@ -28,7 +40,7 @@ type Validator struct {
 // NewValidator creates a new HTTP validator.
 func NewValidator() *Validator {
 	return &Validator{
-		client: &http.Client{},
+		client: defaultClient,
 	}
 }
 

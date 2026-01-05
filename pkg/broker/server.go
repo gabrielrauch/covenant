@@ -4,6 +4,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,23 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/broker/storage"
 	"github.com/gabrielrauch/covenant/pkg/contract"
 )
+
+// maxTags is the maximum number of tags allowed in a single request.
+const maxTags = 50
+
+// errInvalidStatus is returned when an invalid status value is provided.
+var errInvalidStatus = errors.New("invalid status value")
+
+// validateStatus validates and returns the status if valid.
+func validateStatus(s string) (contract.Status, error) {
+	status := contract.Status(s)
+	switch status {
+	case contract.StatusDraft, contract.StatusPublished, contract.StatusDeprecated:
+		return status, nil
+	default:
+		return "", errInvalidStatus
+	}
+}
 
 // Server is the contract broker HTTP server.
 type Server struct {
@@ -102,7 +120,12 @@ func (s *Server) handleListContracts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if status := r.URL.Query().Get("status"); status != "" {
-		filter.Status = contract.Status(status)
+		validStatus, err := validateStatus(status)
+		if err != nil {
+			s.errorResponse(w, http.StatusBadRequest, "invalid status: must be draft, published, or deprecated")
+			return
+		}
+		filter.Status = validStatus
 	}
 
 	contracts, err := s.contracts.List(r.Context(), &filter)
@@ -151,6 +174,11 @@ func (s *Server) handleTagContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(req.Tags) > maxTags {
+		s.errorResponse(w, http.StatusBadRequest, fmt.Sprintf("too many tags: maximum %d allowed", maxTags))
+		return
+	}
+
 	if err := s.contracts.Tag(r.Context(), id, req.Tags); err != nil {
 		if err == storage.ErrNotFound {
 			s.errorResponse(w, http.StatusNotFound, "contract not found")
@@ -171,9 +199,15 @@ func (s *Server) handleUntagContract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tags := strings.Split(r.URL.Query().Get("tags"), ",")
-	if len(tags) == 0 || tags[0] == "" {
+	tagsParam := r.URL.Query().Get("tags")
+	if tagsParam == "" {
 		s.errorResponse(w, http.StatusBadRequest, "tags parameter is required")
+		return
+	}
+
+	tags := strings.Split(tagsParam, ",")
+	if len(tags) > maxTags {
+		s.errorResponse(w, http.StatusBadRequest, fmt.Sprintf("too many tags: maximum %d allowed", maxTags))
 		return
 	}
 

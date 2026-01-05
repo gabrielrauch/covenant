@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // validTableName matches valid PostgreSQL identifiers (letters, digits, underscores).
@@ -38,6 +39,12 @@ type postgresQueries struct {
 type PostgresConfig struct {
 	DB        *sql.DB
 	TableName string
+
+	// Connection pool settings (optional, use 0 for defaults)
+	MaxOpenConns    int           // Maximum open connections (default: 25)
+	MaxIdleConns    int           // Maximum idle connections (default: 5)
+	ConnMaxLifetime time.Duration // Maximum connection lifetime (default: 5m)
+	ConnMaxIdleTime time.Duration // Maximum idle time (default: 1m)
 }
 
 // buildPostgresQueries builds all SQL queries for a given table name.
@@ -71,6 +78,31 @@ func NewPostgresBackend(ctx context.Context, cfg PostgresConfig) (*PostgresBacke
 	if cfg.DB == nil {
 		return nil, fmt.Errorf("database connection is required")
 	}
+
+	// Configure connection pool with sensible defaults
+	maxOpen := cfg.MaxOpenConns
+	if maxOpen == 0 {
+		maxOpen = 25
+	}
+	cfg.DB.SetMaxOpenConns(maxOpen)
+
+	maxIdle := cfg.MaxIdleConns
+	if maxIdle == 0 {
+		maxIdle = 5
+	}
+	cfg.DB.SetMaxIdleConns(maxIdle)
+
+	lifetime := cfg.ConnMaxLifetime
+	if lifetime == 0 {
+		lifetime = 5 * time.Minute
+	}
+	cfg.DB.SetConnMaxLifetime(lifetime)
+
+	idleTime := cfg.ConnMaxIdleTime
+	if idleTime == 0 {
+		idleTime = 1 * time.Minute
+	}
+	cfg.DB.SetConnMaxIdleTime(idleTime)
 
 	// Verify database connection is valid
 	if err := cfg.DB.PingContext(ctx); err != nil {
