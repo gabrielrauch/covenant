@@ -126,7 +126,9 @@ func (s *VerificationService) GetResult(ctx context.Context, contractID, provide
 
 // ListResults returns all verification results for a contract.
 func (s *VerificationService) ListResults(ctx context.Context, contractID string) ([]VerificationResult, error) {
-	prefix := s.keys.VerificationResult(contractID, "")
+	// Build prefix for listing all verifications for this contract
+	// Using AllVerifications() + contractID ensures proper path format without trailing ".json"
+	prefix := s.keys.AllVerifications() + contractID + "/"
 	keys, err := s.storage.List(ctx, prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list results: %w", err)
