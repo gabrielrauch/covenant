@@ -2,7 +2,6 @@
 package consumer
 
 import (
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,10 +71,9 @@ func (c *Contract) AddInteraction(interaction *Interaction) *Contract {
 }
 
 // Build returns the completed contract.
+// Note: The checksum is not computed here. It will be computed when the contract
+// is serialized or published to ensure the most up-to-date value.
 func (c *Contract) Build() *contract.Contract {
-	if err := contract.UpdateChecksum(c.contract); err != nil {
-		log.Printf("Warning: failed to update contract checksum: %v", err)
-	}
 	return c.contract
 }
 

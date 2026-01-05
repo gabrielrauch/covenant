@@ -40,6 +40,7 @@ type MockServer struct {
 	mu               sync.RWMutex
 	receivedRequests []RecordedRequest
 	matchedRequests  map[string]int // interaction ID -> match count
+	serveErr         error          // error from Serve goroutine
 }
 
 // RecordedRequest represents a captured HTTP request.
@@ -98,8 +99,9 @@ func (s *MockServer) StartContext(ctx context.Context) error {
 
 	go func() {
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
-			// Log error but don't panic
-			fmt.Printf("mock server error: %v\n", err)
+			s.mu.Lock()
+			s.serveErr = err
+			s.mu.Unlock()
 		}
 	}()
 

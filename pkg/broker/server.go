@@ -13,6 +13,7 @@ import (
 	"github.com/gabrielrauch/covenant/pkg/broker/brokerapi"
 	"github.com/gabrielrauch/covenant/pkg/broker/storage"
 	"github.com/gabrielrauch/covenant/pkg/contract"
+	"github.com/gabrielrauch/covenant/pkg/log"
 )
 
 // maxTags is the maximum number of tags allowed in a single request.
@@ -38,6 +39,7 @@ type Server struct {
 	contracts     *brokerapi.ContractService
 	verifications *brokerapi.VerificationService
 	deploy        *brokerapi.DeployService
+	logger        log.Logger
 
 	mux *http.ServeMux
 }
@@ -53,10 +55,17 @@ func NewServer(backend storage.Backend) *Server {
 		contracts:     contracts,
 		verifications: verifications,
 		deploy:        deploy,
+		logger:        log.Default(),
 		mux:           http.NewServeMux(),
 	}
 
 	s.setupRoutes()
+	return s
+}
+
+// WithLogger sets a custom logger for the server.
+func (s *Server) WithLogger(logger log.Logger) *Server {
+	s.logger = logger
 	return s
 }
 
@@ -339,7 +348,7 @@ func (s *Server) jsonResponse(w http.ResponseWriter, code int, data any) {
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		// Log error but can't do much since headers are already sent
-		fmt.Printf("failed to encode JSON response: %v\n", err)
+		s.logger.Error("failed to encode JSON response", log.Err(err))
 	}
 }
 
@@ -352,16 +361,22 @@ func (s *Server) errorResponse(w http.ResponseWriter, code int, message string) 
 type Config struct {
 	StorageDir string
 	Addr       string
+	Logger     log.Logger
 }
 
 // Run starts the broker server with the given configuration.
 func Run(ctx context.Context, cfg Config) error {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = log.Default()
+	}
+
 	backend, err := storage.NewFilesystemBackend(cfg.StorageDir)
 	if err != nil {
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
 
-	server := NewServer(backend)
+	server := NewServer(backend).WithLogger(logger)
 
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
@@ -378,10 +393,10 @@ func Run(ctx context.Context, cfg Config) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
-			fmt.Printf("failed to shutdown server: %v\n", err)
+			logger.Error("failed to shutdown server", log.Err(err))
 		}
 	}()
 
-	fmt.Printf("Broker server listening on %s\n", cfg.Addr)
+	logger.Info("broker server listening", log.String("addr", cfg.Addr))
 	return httpServer.ListenAndServe()
 }
