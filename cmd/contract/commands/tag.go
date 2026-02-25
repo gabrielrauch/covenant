@@ -57,7 +57,7 @@ func Tag(ctx context.Context, args []string) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := client.Do(req)
+		resp, err := client.Do(req) //nolint:gosec // URL from user-configured broker
 		if err != nil {
 			return fmt.Errorf("failed to add tags: %w", err)
 		}
@@ -78,7 +78,7 @@ func Tag(ctx context.Context, args []string) error {
 			return fmt.Errorf("failed to create request: %w", err)
 		}
 
-		resp, err := client.Do(req)
+		resp, err := client.Do(req) //nolint:gosec // URL from user-configured broker
 		if err != nil {
 			return fmt.Errorf("failed to remove tags: %w", err)
 		}

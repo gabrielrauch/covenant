@@ -210,7 +210,7 @@ func publishVerificationResults(ctx context.Context, brokerURL string, result *b
 
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) //nolint:gosec // URL from user-configured broker
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to publish results: %v\n", err)
 		return
