@@ -842,7 +842,7 @@ func TestPact_Verify_ContractFilename(t *testing.T) {
 				if readDirErr != nil {
 					t.Fatalf("failed to read output directory: %v", readDirErr)
 				}
-				var files []string
+				files := make([]string, 0, len(entries))
 				for _, e := range entries {
 					files = append(files, e.Name())
 				}

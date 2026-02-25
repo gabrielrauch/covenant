@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -274,7 +275,7 @@ func (v *Validator) ExecuteInteraction(ctx context.Context, baseURL string, inte
 		return nil, fmt.Errorf("failed to build request: %w", err)
 	}
 
-	return v.client.Do(req)
+	return v.client.Do(req) //nolint:gosec // URL is built from provider base URL configured by the user
 }
 
 // buildRequest builds an HTTP request from a contract interaction.
@@ -345,12 +346,8 @@ func (v *Validator) ValidateResponse(interaction *contract.Interaction, resp *ht
 
 	// Merge contract-level rules with interaction-level rules
 	mergedRules := make(contract.MatchingRules)
-	for k, v := range contractRules {
-		mergedRules[k] = v
-	}
-	for k, v := range interaction.MatchingRules {
-		mergedRules[k] = v
-	}
+	maps.Copy(mergedRules, contractRules)
+	maps.Copy(mergedRules, interaction.MatchingRules)
 
 	// Create interaction with merged rules for validation
 	mergedInteraction := *interaction

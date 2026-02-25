@@ -36,7 +36,7 @@ func (c *HTTPClient) Get(ctx context.Context, path string, query url.Values) ([]
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(req) //nolint:gosec // URL is constructed from user-configured broker base URL, not untrusted input
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -82,7 +82,7 @@ func (c *HTTPClient) PostJSON(ctx context.Context, path string, body any, expect
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
+	resp, err := c.client.Do(req) //nolint:gosec // URL is constructed from user-configured broker base URL, not untrusted input
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
