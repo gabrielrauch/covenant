@@ -14,6 +14,8 @@ import (
 // DefaultMatrixCacheTTL is the default cache TTL for deployment matrices.
 const DefaultMatrixCacheTTL = 30 * time.Second
 
+const statusVerified = "verified"
+
 // DeployService handles deployment safety checks.
 type DeployService struct {
 	contracts     *ContractService
@@ -124,7 +126,7 @@ func (s *DeployService) CanDeploy(ctx context.Context, service, version, environ
 
 	// Set OK = false if any reason indicates a problem
 	for _, reason := range result.Reasons {
-		if reason.Status != "verified" {
+		if reason.Status != statusVerified {
 			result.OK = false
 			break
 		}
@@ -190,7 +192,7 @@ func (s *DeployService) checkProviderVerification(ctx context.Context, summary *
 		ContractID: summary.ID,
 		Consumer:   summary.Consumer,
 		Provider:   summary.Provider,
-		Status:     "verified",
+		Status:     statusVerified,
 		Message:    fmt.Sprintf("verified against %s v%s", summary.Consumer, summary.Version),
 	}, nil
 }
@@ -254,7 +256,7 @@ func (s *DeployService) checkConsumerVerification(ctx context.Context, summary *
 		ContractID: summary.ID,
 		Consumer:   summary.Consumer,
 		Provider:   summary.Provider,
-		Status:     "verified",
+		Status:     statusVerified,
 		Message:    fmt.Sprintf("provider %s verified at %s", summary.Provider, latestSuccess.VerifiedAt.Format("2006-01-02 15:04:05")),
 	}, nil
 }

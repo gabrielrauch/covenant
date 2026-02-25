@@ -184,6 +184,7 @@ func TestContractService_GetByID(t *testing.T) {
 	})
 }
 
+//nolint:gocyclo // test function
 func TestContractService_List(t *testing.T) {
 	ctx := context.Background()
 	svc := newTestContractService(t)
@@ -240,6 +241,39 @@ func TestContractService_List(t *testing.T) {
 		}
 		if len(summaries) != 1 {
 			t.Errorf("got %d contracts, want 1", len(summaries))
+		}
+	})
+
+	t.Run("filter by provider", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{Provider: "provider-a"})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(summaries) != 2 {
+			t.Errorf("got %d contracts, want 2", len(summaries))
+		}
+	})
+
+	t.Run("filter by version", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{Version: "1.0.0"})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(summaries) != 3 {
+			t.Errorf("got %d contracts, want 3", len(summaries))
+		}
+	})
+
+	t.Run("filter by consumer and provider combined", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{Consumer: "consumer-list", Provider: "provider-b"})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		// matchesFilter checks both consumer and provider even if prefix narrows listing
+		for _, s := range summaries {
+			if s.Consumer != "consumer-list" || s.Provider != "provider-b" {
+				t.Errorf("unexpected contract: consumer=%s provider=%s", s.Consumer, s.Provider)
+			}
 		}
 	})
 }
@@ -360,6 +394,292 @@ func TestContractService_Deprecate(t *testing.T) {
 			t.Error("expected error for non-existent contract")
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Additional Publish branch tests
+// ---------------------------------------------------------------------------
+
+func TestContractService_Publish_SetsCreatedAt(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	t.Run("zero CreatedAt is auto-populated", func(t *testing.T) {
+		c := createTestContract("consumer-time", "provider-time", "1.0.0")
+		c.Metadata.CreatedAt = time.Time{} // zero
+
+		before := time.Now().UTC()
+		_, err := svc.Publish(ctx, c)
+		if err != nil {
+			t.Fatalf("Publish failed: %v", err)
+		}
+		after := time.Now().UTC()
+
+		if c.Metadata.CreatedAt.IsZero() {
+			t.Error("expected CreatedAt to be auto-populated")
+		}
+		if c.Metadata.CreatedAt.Before(before) || c.Metadata.CreatedAt.After(after) {
+			t.Errorf("CreatedAt %v not in expected range", c.Metadata.CreatedAt)
+		}
+	})
+
+	t.Run("non-zero CreatedAt is preserved", func(t *testing.T) {
+		fixed := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
+		c := createTestContract("consumer-time2", "provider-time2", "1.0.0")
+		c.Metadata.CreatedAt = fixed
+
+		_, err := svc.Publish(ctx, c)
+		if err != nil {
+			t.Fatalf("Publish failed: %v", err)
+		}
+		if !c.Metadata.CreatedAt.Equal(fixed) {
+			t.Errorf("CreatedAt = %v, want %v", c.Metadata.CreatedAt, fixed)
+		}
+	})
+}
+
+func TestContractService_Publish_WithTags(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	c := createTestContract("consumer-tagged", "provider-tagged", "1.0.0")
+	c.Metadata.Tags = []string{"prod", "staging"}
+
+	result, err := svc.Publish(ctx, c)
+	if err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
+	if result.Checksum == "" {
+		t.Error("expected checksum to be set")
+	}
+
+	// Verify tags are stored correctly
+	got, err := svc.GetByID(ctx, c.Metadata.ID)
+	if err != nil {
+		t.Fatalf("GetByID failed: %v", err)
+	}
+	if len(got.Metadata.Tags) != 2 {
+		t.Errorf("got %d tags, want 2", len(got.Metadata.Tags))
+	}
+}
+
+func TestContractService_Publish_RejectUpdateOfDeprecated(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	c := createTestContract("consumer-dep-upd", "provider-dep-upd", "1.0.0")
+	c.Metadata.Status = contract.StatusPublished
+	if _, err := svc.Publish(ctx, c); err != nil {
+		t.Fatalf("initial Publish failed: %v", err)
+	}
+
+	// Deprecate it
+	if err := svc.Deprecate(ctx, c.Metadata.ID); err != nil {
+		t.Fatalf("Deprecate failed: %v", err)
+	}
+
+	// Try to re-publish — should fail since it's deprecated (non-draft)
+	c.Interactions[0].Description = "updated"
+	_, err := svc.Publish(ctx, c)
+	if err == nil {
+		t.Error("expected error when updating deprecated contract")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// matchesFilter — direct tests
+// ---------------------------------------------------------------------------
+
+func TestMatchesFilter(t *testing.T) {
+	svc := newTestContractService(t)
+
+	c := &contract.Contract{
+		Metadata: contract.Metadata{
+			Consumer: contract.Participant{Name: "consumer-x"},
+			Provider: contract.Participant{Name: "provider-y"},
+			Status:   contract.StatusPublished,
+			Version:  "2.0.0",
+		},
+	}
+
+	tests := []struct {
+		name   string
+		filter *ContractFilter
+		want   bool
+	}{
+		{
+			name:   "empty filter matches all",
+			filter: &ContractFilter{},
+			want:   true,
+		},
+		{
+			name:   "matching consumer",
+			filter: &ContractFilter{Consumer: "consumer-x"},
+			want:   true,
+		},
+		{
+			name:   "non-matching consumer",
+			filter: &ContractFilter{Consumer: "consumer-z"},
+			want:   false,
+		},
+		{
+			name:   "matching provider",
+			filter: &ContractFilter{Provider: "provider-y"},
+			want:   true,
+		},
+		{
+			name:   "non-matching provider",
+			filter: &ContractFilter{Provider: "provider-z"},
+			want:   false,
+		},
+		{
+			name:   "matching status",
+			filter: &ContractFilter{Status: contract.StatusPublished},
+			want:   true,
+		},
+		{
+			name:   "non-matching status",
+			filter: &ContractFilter{Status: contract.StatusDraft},
+			want:   false,
+		},
+		{
+			name:   "matching version",
+			filter: &ContractFilter{Version: "2.0.0"},
+			want:   true,
+		},
+		{
+			name:   "non-matching version",
+			filter: &ContractFilter{Version: "3.0.0"},
+			want:   false,
+		},
+		{
+			name: "all fields match",
+			filter: &ContractFilter{
+				Consumer: "consumer-x",
+				Provider: "provider-y",
+				Status:   contract.StatusPublished,
+				Version:  "2.0.0",
+			},
+			want: true,
+		},
+		{
+			name: "one field mismatch fails all",
+			filter: &ContractFilter{
+				Consumer: "consumer-x",
+				Provider: "provider-y",
+				Status:   contract.StatusDraft,
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := svc.matchesFilter(c, tt.filter)
+			if got != tt.want {
+				t.Errorf("matchesFilter() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// List — resolveListPrefix paths
+// ---------------------------------------------------------------------------
+
+func TestContractService_List_ResolveListPrefix(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	// Publish several contracts to test prefix-based listing
+	c1 := createTestContract("pfx-cons-a", "pfx-prov-a", "1.0.0")
+	c1.Metadata.Status = contract.StatusPublished
+	if _, err := svc.Publish(ctx, c1); err != nil {
+		t.Fatalf("Publish c1 failed: %v", err)
+	}
+
+	c2 := createTestContract("pfx-cons-a", "pfx-prov-b", "1.0.0")
+	c2.Metadata.Status = contract.StatusPublished
+	if _, err := svc.Publish(ctx, c2); err != nil {
+		t.Fatalf("Publish c2 failed: %v", err)
+	}
+
+	c3 := createTestContract("pfx-cons-b", "pfx-prov-a", "1.0.0")
+	c3.Metadata.Status = contract.StatusPublished
+	if _, err := svc.Publish(ctx, c3); err != nil {
+		t.Fatalf("Publish c3 failed: %v", err)
+	}
+
+	t.Run("filter by consumer only uses consumer prefix", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{
+			Consumer: "pfx-cons-a",
+		})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(summaries) != 2 {
+			t.Errorf("got %d, want 2 (both providers for pfx-cons-a)", len(summaries))
+		}
+	})
+
+	t.Run("filter only by provider uses AllContracts prefix", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{
+			Provider: "pfx-prov-a",
+		})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(summaries) != 2 {
+			t.Errorf("got %d, want 2 (both consumers for pfx-prov-a)", len(summaries))
+		}
+	})
+
+	t.Run("empty filter returns all", func(t *testing.T) {
+		summaries, err := svc.List(ctx, &ContractFilter{})
+		if err != nil {
+			t.Fatalf("List failed: %v", err)
+		}
+		if len(summaries) != 3 {
+			t.Errorf("got %d, want 3", len(summaries))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// loadContract — error paths
+// ---------------------------------------------------------------------------
+
+func TestContractService_LoadContract_NotFound(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	_, err := svc.loadContract(ctx, "contracts/nonexistent/key.json")
+	if err == nil {
+		t.Error("expected error for non-existent key")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Get — empty version
+// ---------------------------------------------------------------------------
+
+func TestContractService_Get_EmptyVersion(t *testing.T) {
+	ctx := context.Background()
+	svc := newTestContractService(t)
+
+	c := createTestContract("cons-empty-v", "prov-empty-v", "1.0.0")
+	if _, err := svc.Publish(ctx, c); err != nil {
+		t.Fatalf("Publish failed: %v", err)
+	}
+
+	// Empty version should resolve to "latest"
+	got, err := svc.Get(ctx, "cons-empty-v", "prov-empty-v", "")
+	if err != nil {
+		t.Fatalf("Get with empty version failed: %v", err)
+	}
+	if got.Metadata.ID != c.Metadata.ID {
+		t.Errorf("ID = %q, want %q", got.Metadata.ID, c.Metadata.ID)
+	}
 }
 
 func TestContractSummary(t *testing.T) {

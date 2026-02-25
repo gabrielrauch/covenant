@@ -432,6 +432,30 @@ func TestToJSON(t *testing.T) {
 	})
 }
 
+func TestToJSON_Unmarshalable(t *testing.T) {
+	// Channels cannot be marshaled to JSON
+	result := ToJSON(make(chan int))
+	if result != nil {
+		t.Errorf("expected nil for unmarshalable value, got %s", result)
+	}
+}
+
+func TestMessageCapture_NilAsyncPayload(t *testing.T) {
+	interactions := []contract.Interaction{
+		{ID: "no-async", Payload: contract.Payload{}},
+	}
+	capture := NewMessageCapture(interactions)
+	capture.Capture("any", nil, []byte(`{}`))
+
+	msgs := capture.CapturedMessages()
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if msgs[0].Matched {
+		t.Error("message should not match interaction without async payload")
+	}
+}
+
 // mockTransport implements Transport for testing
 type mockTransport struct {
 	broker *InMemoryBroker

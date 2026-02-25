@@ -153,3 +153,16 @@ func TestValidateHeaders_CustomFieldName(t *testing.T) {
 		t.Errorf("expected custom field name in message, got: %s", errors[0].Message)
 	}
 }
+
+func TestValidateHeaders_DefaultFieldName(t *testing.T) {
+	expected := map[string]string{"k": "v"}
+	actual := map[string]string{}
+
+	errors := ValidateHeaders(expected, actual, nil, HeaderValidationConfig{BasePath: "$.p"})
+	if len(errors) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(errors))
+	}
+	if errors[0].Message != `expected header k to be present` {
+		t.Errorf("unexpected message: %s", errors[0].Message)
+	}
+}

@@ -274,6 +274,21 @@ func TestReadValidated(t *testing.T) {
 	}
 }
 
+func TestReadValidated_EmptyFile(t *testing.T) {
+	tmp := t.TempDir()
+	empty := filepath.Join(tmp, "empty.txt")
+	if err := os.WriteFile(empty, []byte{}, 0600); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	data, err := ReadValidated(empty)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(data) != 0 {
+		t.Errorf("expected empty content, got %d bytes", len(data))
+	}
+}
+
 func TestSecureOpen_PathTraversal(t *testing.T) {
 	// These paths should be sanitized successfully (paths cleaned by filepath.Clean)
 	// The actual file doesn't need to exist for the path validation to work

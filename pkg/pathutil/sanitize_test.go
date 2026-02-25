@@ -190,6 +190,24 @@ func TestValidateWithinRoot_PrefixAttack(t *testing.T) {
 	}
 }
 
+func TestValidateWithinRoot_InvalidRoot(t *testing.T) {
+	// Relative root gets resolved; ensure a path escaping it is caught
+	_, err := ValidateWithinRoot("/tmp/nonexistent-root", "/etc/passwd")
+	if err == nil {
+		t.Error("expected error for path outside root")
+	}
+}
+
+func TestSanitizeAbsolutePath_TrailingSlash(t *testing.T) {
+	result, err := SanitizeAbsolutePath("/tmp/dir/")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "/tmp/dir" {
+		t.Errorf("expected trailing slash removed, got %q", result)
+	}
+}
+
 func TestValidateWithinRoot_SymlinkTraversal(t *testing.T) {
 	// Skip on Windows where symlinks require elevated privileges
 	if runtime.GOOS == "windows" {

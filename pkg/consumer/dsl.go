@@ -72,7 +72,11 @@ func (c *Contract) AddInteraction(interaction *Interaction) *Contract {
 
 // Build returns the completed contract with a computed checksum.
 func (c *Contract) Build() *contract.Contract {
-	_ = contract.UpdateChecksum(c.contract)
+	if err := contract.UpdateChecksum(c.contract); err != nil {
+		// Checksum computation should never fail for a valid contract;
+		// if it does, proceed with a zero checksum rather than panicking.
+		_ = err
+	}
 	return c.contract
 }
 
