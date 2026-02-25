@@ -70,10 +70,9 @@ func (c *Contract) AddInteraction(interaction *Interaction) *Contract {
 	return c
 }
 
-// Build returns the completed contract.
-// Note: The checksum is not computed here. It will be computed when the contract
-// is serialized or published to ensure the most up-to-date value.
+// Build returns the completed contract with a computed checksum.
 func (c *Contract) Build() *contract.Contract {
+	_ = contract.UpdateChecksum(c.contract)
 	return c.contract
 }
 
